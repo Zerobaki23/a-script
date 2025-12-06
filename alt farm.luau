@@ -1,6 +1,6 @@
 getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
 getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
-getgenv().webhookURL = "https://discord.com/api/webhooks/1265355595582537809/rAYW0kkZl4MnKE6Q-TcHPvncwdXJDY39y6d9nYcy54JUlmN8BCJXgxKGKKk3lKj8hPPe"
+getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
 getgenv().checkInterval = 60 -- Check every 60 seconds
 
 loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
@@ -178,31 +178,56 @@ end
 
 -- Account Checker Functions
 function SendMessageEMBED(url, embed)
-    local headers = {
-        ["Content-Type"] = "application/json"
-    }
-    local data = {
-        ["embeds"] = {
-            {
-                ["title"] = embed.title,
-                ["description"] = embed.description,
-                ["color"] = embed.color,
-                ["fields"] = embed.fields,
-                ["footer"] = {
-                    ["text"] = embed.footer.text
-                },
-                ["timestamp"] = embed.timestamp
+    if not url or url == "" or url == "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE" then
+        warn("❌ Invalid webhook URL! Please set your webhook URL in the Account Checker tab.")
+        Luna:Notification({
+            Title = "Webhook Error",
+            Icon = "error",
+            ImageSource = "Material",
+            Content = "Please set a valid webhook URL first!"
+        })
+        return false
+    end
+    
+    local success, err = pcall(function()
+        local headers = {
+            ["Content-Type"] = "application/json"
+        }
+        local data = {
+            ["embeds"] = {
+                {
+                    ["title"] = embed.title,
+                    ["description"] = embed.description,
+                    ["color"] = embed.color,
+                    ["footer"] = {
+                        ["text"] = embed.footer.text
+                    },
+                    ["timestamp"] = embed.timestamp
+                }
             }
         }
-    }
-    local body = HttpService:JSONEncode(data)
-    local response = request({
-        Url = url,
-        Method = "POST",
-        Headers = headers,
-        Body = body
-    })
-    print("✓ Webhook sent successfully")
+        local body = HttpService:JSONEncode(data)
+        local response = request({
+            Url = url,
+            Method = "POST",
+            Headers = headers,
+            Body = body
+        })
+        print("✓ Webhook sent successfully")
+    end)
+    
+    if not success then
+        warn("❌ Webhook failed:", err)
+        Luna:Notification({
+            Title = "Webhook Failed",
+            Icon = "error",
+            ImageSource = "Material",
+            Content = "Failed to send webhook. Check console for details."
+        })
+        return false
+    end
+    
+    return true
 end
 
 local function getAllMonitoredAccounts()
@@ -327,7 +352,7 @@ local function checkAccounts()
         ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%S")
     }
     
-    SendMessageEMBED(getgenv().webhookURL, embed)
+    return SendMessageEMBED(getgenv().webhookURL, embed)
 end
 
 -- Create Home Tab
@@ -498,13 +523,14 @@ local ManualCheckButton = AccountCheckerTab:CreateButton({
 	Name = "Send Status Now",
 	Description = "Manually send account status to Discord",
 	Callback = function()
-		checkAccounts()
-		Luna:Notification({
-			Title = "Status Sent",
-			Icon = "send",
-			ImageSource = "Material",
-			Content = "Account status sent to Discord!"
-		})
+		if checkAccounts() then
+			Luna:Notification({
+				Title = "Status Sent",
+				Icon = "send",
+				ImageSource = "Material",
+				Content = "Account status sent to Discord!"
+			})
+		end
 	end
 })
 

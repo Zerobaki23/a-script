@@ -2,6 +2,8 @@ getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
 getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
 getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
 getgenv().checkInterval = 60 -- Check every 60 seconds
+getgenv().killMilestone = 100 -- Ping @everyone every X kills
+getgenv().lastKillCount = 0 -- Track last kill count
 
 loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
 
@@ -177,7 +179,7 @@ local function keyPressLoop()
 end
 
 -- Account Checker Functions
-function SendMessageEMBED(url, embed)
+function SendMessageEMBED(url, embed, pingEveryone)
     if not url or url == "" or url == "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE" then
         warn("❌ Invalid webhook URL! Please set your webhook URL in the Account Checker tab.")
         Luna:Notification({
@@ -194,6 +196,7 @@ function SendMessageEMBED(url, embed)
             ["Content-Type"] = "application/json"
         }
         local data = {
+            ["content"] = pingEveryone and "@everyone" or nil,
             ["embeds"] = {
                 {
                     ["title"] = embed.title,
@@ -293,6 +296,8 @@ local function checkAccounts()
     local connectedCount = 0
     local disconnectedCount = 0
     local accountLines = {}
+    local mainAccountKills = 0
+    local shouldPingEveryone = false
     
     for _, account in ipairs(monitoredAccounts) do
         local isConnected, plr = isPlayerInServer(account.name)
@@ -300,6 +305,21 @@ local function checkAccounts()
         if isConnected then
             connectedCount = connectedCount + 1
             local stats = getPlayerStats(plr)
+            
+            -- Check if this is the main account and track kills
+            if account.name:lower() == getgenv().mainaccount:lower() and stats.kills ~= "N/A" then
+                mainAccountKills = tonumber(stats.kills) or 0
+                
+                -- Check for milestone achievements
+                local currentMilestone = math.floor(mainAccountKills / getgenv().killMilestone)
+                local lastMilestone = math.floor(getgenv().lastKillCount / getgenv().killMilestone)
+                
+                if currentMilestone > lastMilestone and mainAccountKills > 0 then
+                    shouldPingEveryone = true
+                    getgenv().lastKillCount = mainAccountKills
+                    print(string.format("🎉 MILESTONE REACHED! %s has %d kills!", account.name, mainAccountKills))
+                end
+            end
             
             local line = string.format(
                 "🟢 **%s** (%s)\n├ Kills: %s | Level: %s\n└ Team: %s\n",
@@ -325,6 +345,11 @@ local function checkAccounts()
     local totalAccounts = #monitoredAccounts
     local serverName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
     
+    local titleText = "📊 Account Status Report"
+    if shouldPingEveryone then
+        titleText = "🎉 MILESTONE ACHIEVED - " .. mainAccountKills .. " KILLS!"
+    end
+    
     local description = string.format(
         "**Server:** %s\n**Total:** %d | **Connected:** 🟢 %d | **Disconnected:** 🔴 %d\n\n" ..
         "━━━━━━━━━━━━━━━━━━━━━━\n\n%s",
@@ -336,14 +361,16 @@ local function checkAccounts()
     )
     
     local color = 65280
-    if connectedCount == 0 then
+    if shouldPingEveryone then
+        color = 16766720 -- Orange for milestone
+    elseif connectedCount == 0 then
         color = 16711680
     elseif disconnectedCount > 0 then
         color = 16776960
     end
     
     local embed = {
-        ["title"] = "📊 Account Status Report",
+        ["title"] = titleText,
         ["description"] = description,
         ["color"] = color,
         ["footer"] = {
@@ -352,7 +379,7 @@ local function checkAccounts()
         ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%S")
     }
     
-    return SendMessageEMBED(getgenv().webhookURL, embed)
+    return SendMessageEMBED(getgenv().webhookURL, embed, shouldPingEveryone)
 end
 
 -- Create Home Tab
@@ -576,6 +603,28 @@ local WebhookInput = AccountCheckerTab:CreateInput({
 		})
 	end
 }, "WebhookURL")
+
+local MilestoneInput = AccountCheckerTab:CreateInput({
+	Name = "Kill Milestone (@everyone ping)",
+	Description = "Ping @everyone every X kills on main account",
+	PlaceholderText = "100",
+	CurrentValue = tostring(getgenv().killMilestone),
+	Numeric = true,
+	MaxCharacters = nil,
+	Enter = false,
+	Callback = function(Text)
+		local milestone = tonumber(Text)
+		if milestone and milestone > 0 then
+			getgenv().killMilestone = milestone
+			Luna:Notification({
+				Title = "Milestone Updated",
+				Icon = "check_circle",
+				ImageSource = "Material",
+				Content = string.format("Will ping @everyone every %d kills!", milestone)
+			})
+		end
+	end
+}, "KillMilestone")
 
 AccountCheckerTab:CreateParagraph({
 	Title = "Check Interval",

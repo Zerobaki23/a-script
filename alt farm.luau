@@ -1,5 +1,7 @@
 getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
 getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
+getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
+getgenv().checkInterval = 60 -- Check every 60 seconds
 
 loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
 
@@ -22,6 +24,7 @@ local Window = Luna:CreateWindow({
 
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -30,6 +33,7 @@ local farmingEnabled = false
 local autoClickEnabled = false
 local keyPressEnabled = false
 local fpsCapEnabled = false
+local accountCheckerEnabled = false
 local startTime = 0
 local elapsedTime = 0
 
@@ -172,6 +176,160 @@ local function keyPressLoop()
     end
 end
 
+-- Account Checker Functions
+function SendMessageEMBED(url, embed)
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+    local data = {
+        ["embeds"] = {
+            {
+                ["title"] = embed.title,
+                ["description"] = embed.description,
+                ["color"] = embed.color,
+                ["fields"] = embed.fields,
+                ["footer"] = {
+                    ["text"] = embed.footer.text
+                },
+                ["timestamp"] = embed.timestamp
+            }
+        }
+    }
+    local body = HttpService:JSONEncode(data)
+    local response = request({
+        Url = url,
+        Method = "POST",
+        Headers = headers,
+        Body = body
+    })
+    print("✓ Webhook sent successfully")
+end
+
+local function getAllMonitoredAccounts()
+    local accounts = {}
+    
+    table.insert(accounts, {
+        name = getgenv().mainaccount,
+        type = "Main Account"
+    })
+    
+    for _, helperName in ipairs(getgenv().mainhelpers) do
+        table.insert(accounts, {
+            name = helperName,
+            type = "Helper Account"
+        })
+    end
+    
+    return accounts
+end
+
+local function isPlayerInServer(playerName)
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name:lower() == playerName:lower() then
+            return true, plr
+        end
+    end
+    return false, nil
+end
+
+local function getPlayerStats(plr)
+    local stats = {
+        kills = "N/A",
+        level = "N/A",
+        team = "N/A"
+    }
+    
+    local leaderstats = plr:FindFirstChild("leaderstats")
+    if leaderstats then
+        local killStat = leaderstats:FindFirstChild("Kills") 
+                      or leaderstats:FindFirstChild("kills")
+                      or leaderstats:FindFirstChild("KOs")
+                      or leaderstats:FindFirstChild("Eliminations")
+        if killStat then
+            stats.kills = tostring(killStat.Value)
+        end
+        
+        local levelStat = leaderstats:FindFirstChild("Level")
+                       or leaderstats:FindFirstChild("level")
+        if levelStat then
+            stats.level = tostring(levelStat.Value)
+        end
+    end
+    
+    if plr.Team then
+        stats.team = plr.Team.Name
+    end
+    
+    return stats
+end
+
+local function checkAccounts()
+    local monitoredAccounts = getAllMonitoredAccounts()
+    local connectedCount = 0
+    local disconnectedCount = 0
+    local accountLines = {}
+    
+    for _, account in ipairs(monitoredAccounts) do
+        local isConnected, plr = isPlayerInServer(account.name)
+        
+        if isConnected then
+            connectedCount = connectedCount + 1
+            local stats = getPlayerStats(plr)
+            
+            local line = string.format(
+                "🟢 **%s** (%s)\n├ Kills: %s | Level: %s\n└ Team: %s\n",
+                account.name,
+                account.type,
+                stats.kills,
+                stats.level,
+                stats.team
+            )
+            table.insert(accountLines, line)
+        else
+            disconnectedCount = disconnectedCount + 1
+            
+            local line = string.format(
+                "🔴 **%s** (%s)\n└ Status: Disconnected\n",
+                account.name,
+                account.type
+            )
+            table.insert(accountLines, line)
+        end
+    end
+    
+    local totalAccounts = #monitoredAccounts
+    local serverName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+    
+    local description = string.format(
+        "**Server:** %s\n**Total:** %d | **Connected:** 🟢 %d | **Disconnected:** 🔴 %d\n\n" ..
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n%s",
+        serverName,
+        totalAccounts,
+        connectedCount,
+        disconnectedCount,
+        table.concat(accountLines, "\n")
+    )
+    
+    local color = 65280
+    if connectedCount == 0 then
+        color = 16711680
+    elseif disconnectedCount > 0 then
+        color = 16776960
+    end
+    
+    local embed = {
+        ["title"] = "📊 Account Status Report",
+        ["description"] = description,
+        ["color"] = color,
+        ["footer"] = {
+            ["text"] = "Automation Hub • Account Checker"
+        },
+        ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%S")
+    }
+    
+    SendMessageEMBED(getgenv().webhookURL, embed)
+end
+
 -- Create Home Tab
 Window:CreateHomeTab({
 	SupportedExecutors = {
@@ -285,6 +443,105 @@ local FPSCapToggle = AutomationTab:CreateToggle({
 	end
 }, "FPSCapToggle")
 
+-- Account Checker Tab
+local AccountCheckerTab = Window:CreateTab({
+	Name = "Account Checker",
+	Icon = "people",
+	ImageSource = "Material",
+	ShowTitle = true
+})
+
+AccountCheckerTab:CreateSection("Account Monitoring")
+
+local accountStatusLabel = AccountCheckerTab:CreateLabel({
+	Text = "Account Checker: Disabled",
+	Style = 2
+})
+
+local CheckerToggle = AccountCheckerTab:CreateToggle({
+	Name = "Enable Account Checker",
+	Description = "Monitor accounts and send Discord webhooks",
+	CurrentValue = false,
+	Callback = function(Value)
+		accountCheckerEnabled = Value
+		
+		if accountCheckerEnabled then
+			accountStatusLabel:Set("Account Checker: 🟢 Enabled")
+			Luna:Notification({
+				Title = "Account Checker Started",
+				Icon = "check_circle",
+				ImageSource = "Material",
+				Content = "Now monitoring accounts!"
+			})
+			
+			-- Send initial check
+			task.spawn(function()
+				task.wait(2)
+				checkAccounts()
+			end)
+		else
+			accountStatusLabel:Set("Account Checker: 🔴 Disabled")
+			Luna:Notification({
+				Title = "Account Checker Stopped",
+				Icon = "cancel",
+				ImageSource = "Material",
+				Content = "Account monitoring disabled."
+			})
+		end
+	end
+}, "AccountCheckerToggle")
+
+AccountCheckerTab:CreateDivider()
+AccountCheckerTab:CreateSection("Manual Check")
+
+local ManualCheckButton = AccountCheckerTab:CreateButton({
+	Name = "Send Status Now",
+	Description = "Manually send account status to Discord",
+	Callback = function()
+		checkAccounts()
+		Luna:Notification({
+			Title = "Status Sent",
+			Icon = "send",
+			ImageSource = "Material",
+			Content = "Account status sent to Discord!"
+		})
+	end
+})
+
+AccountCheckerTab:CreateDivider()
+AccountCheckerTab:CreateSection("Monitored Accounts")
+
+AccountCheckerTab:CreateParagraph({
+	Title = "Main Account",
+	Text = "📌 " .. getgenv().mainaccount
+})
+
+local helperText = ""
+for i, helper in ipairs(getgenv().mainhelpers) do
+    helperText = helperText .. "• " .. helper
+    if i < #getgenv().mainhelpers then
+        helperText = helperText .. "\n"
+    end
+end
+
+AccountCheckerTab:CreateParagraph({
+	Title = "Helper Accounts (" .. #getgenv().mainhelpers .. ")",
+	Text = helperText
+})
+
+AccountCheckerTab:CreateDivider()
+AccountCheckerTab:CreateSection("Settings")
+
+AccountCheckerTab:CreateParagraph({
+	Title = "Webhook Configuration",
+	Text = "Edit webhook URL in script configuration at the top"
+})
+
+AccountCheckerTab:CreateParagraph({
+	Title = "Check Interval",
+	Text = "Currently set to: " .. getgenv().checkInterval .. " seconds"
+})
+
 -- Teleport Tab
 local TeleportTab = Window:CreateTab({
 	Name = "Teleport",
@@ -295,6 +552,10 @@ local TeleportTab = Window:CreateTab({
 
 TeleportTab:CreateSection("Coordinate Teleportation")
 
+local currentX = "438.7"
+local currentY = "441.8"
+local currentZ = "-376.2"
+
 local XCoordInput = TeleportTab:CreateInput({
 	Name = "X Coordinate",
 	Description = "Enter X position",
@@ -304,7 +565,7 @@ local XCoordInput = TeleportTab:CreateInput({
 	MaxCharacters = nil,
 	Enter = false,
 	Callback = function(Text)
-		-- Stored automatically
+		currentX = Text
 	end
 }, "XCoord")
 
@@ -317,7 +578,7 @@ local YCoordInput = TeleportTab:CreateInput({
 	MaxCharacters = nil,
 	Enter = false,
 	Callback = function(Text)
-		-- Stored automatically
+		currentY = Text
 	end
 }, "YCoord")
 
@@ -330,14 +591,9 @@ local ZCoordInput = TeleportTab:CreateInput({
 	MaxCharacters = nil,
 	Enter = false,
 	Callback = function(Text)
-		-- Stored automatically
+		currentZ = Text
 	end
 }, "ZCoord")
-
--- Store coordinates in variables
-local currentX = "438.7"
-local currentY = "441.8"
-local currentZ = "-376.2"
 
 local TeleportButton = TeleportTab:CreateButton({
 	Name = "Teleport to Coordinates",
@@ -439,6 +695,64 @@ task.spawn(function()
     end
 end)
 
+-- Account Checker Background Loop
+task.spawn(function()
+    while true do
+        task.wait(getgenv().checkInterval)
+        if accountCheckerEnabled then
+            print("🔄 Running periodic account check...")
+            checkAccounts()
+        end
+    end
+end)
+
+-- Monitor player joins/leaves for account checker
+Players.PlayerAdded:Connect(function(plr)
+    if not accountCheckerEnabled then return end
+    
+    task.wait(1)
+    local isMonitored = false
+    
+    if plr.Name:lower() == getgenv().mainaccount:lower() then
+        isMonitored = true
+    end
+    
+    for _, helperName in ipairs(getgenv().mainhelpers) do
+        if plr.Name:lower() == helperName:lower() then
+            isMonitored = true
+            break
+        end
+    end
+    
+    if isMonitored then
+        print("✅ Monitored account joined:", plr.Name)
+        checkAccounts()
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    if not accountCheckerEnabled then return end
+    
+    local isMonitored = false
+    
+    if plr.Name:lower() == getgenv().mainaccount:lower() then
+        isMonitored = true
+    end
+    
+    for _, helperName in ipairs(getgenv().mainhelpers) do
+        if plr.Name:lower() == helperName:lower() then
+            isMonitored = true
+            break
+        end
+    end
+    
+    if isMonitored then
+        print("❌ Monitored account left:", plr.Name)
+        task.wait(1)
+        checkAccounts()
+    end
+end)
+
 Luna:Notification({
 	Title = "Automation Hub Loaded",
 	Icon = "check_circle",
@@ -448,3 +762,4 @@ Luna:Notification({
 
 print("✓ Automation Hub loaded successfully!")
 print("✓ User:", player.Name, "| Type:", accountType)
+print("✓ Account Checker ready! Monitoring", 1 + #getgenv().mainhelpers, "account(s)")

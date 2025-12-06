@@ -1,5 +1,7 @@
 getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
 getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
+getgenv().mainaccount = "GodBaki1" -- Your main account username
+getgenv().mainhelpers = {"zero_alt032", "Liacutexxr5", "xsdhoep4", "xsdhope", "Liacutexxr3"}
 getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
 getgenv().checkInterval = 60 -- Check every 60 seconds
 
@@ -445,8 +447,8 @@ local FPSCapToggle = AutomationTab:CreateToggle({
 
 -- Account Checker Tab
 local AccountCheckerTab = Window:CreateTab({
-	Name = "Account Checker",
-	Icon = "people",
+	Name = "Acc Checker",
+	Icon = "group",
 	ImageSource = "Material",
 	ShowTitle = true
 })

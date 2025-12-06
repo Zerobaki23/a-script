@@ -1,7 +1,5 @@
 getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
 getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
-getgenv().mainaccount = "GodBaki1" -- Your main account username
-getgenv().mainhelpers = {"zero_alt032", "Liacutexxr5", "xsdhoep4", "xsdhope", "Liacutexxr3"}
 getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
 getgenv().checkInterval = 60 -- Check every 60 seconds
 
@@ -534,10 +532,24 @@ AccountCheckerTab:CreateParagraph({
 AccountCheckerTab:CreateDivider()
 AccountCheckerTab:CreateSection("Settings")
 
-AccountCheckerTab:CreateParagraph({
-	Title = "Webhook Configuration",
-	Text = "Edit webhook URL in script configuration at the top"
-})
+local WebhookInput = AccountCheckerTab:CreateInput({
+	Name = "Discord Webhook URL",
+	Description = "Enter your Discord webhook URL",
+	PlaceholderText = "https://discord.com/api/webhooks/...",
+	CurrentValue = getgenv().webhookURL,
+	Numeric = false,
+	MaxCharacters = nil,
+	Enter = false,
+	Callback = function(Text)
+		getgenv().webhookURL = Text
+		Luna:Notification({
+			Title = "Webhook Updated",
+			Icon = "check_circle",
+			ImageSource = "Material",
+			Content = "Discord webhook URL has been saved!"
+		})
+	end
+}, "WebhookURL")
 
 AccountCheckerTab:CreateParagraph({
 	Title = "Check Interval",

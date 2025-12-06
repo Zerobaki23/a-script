@@ -3,6 +3,23 @@ getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
 
 loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
 
+-- Load Luna UI Library
+local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/master/source.lua", true))()
+
+local Window = Luna:CreateWindow({
+	Name = "Automation Hub",
+	Subtitle = "Advanced Farming System",
+	LogoID = nil,
+	LoadingEnabled = true,
+	LoadingTitle = "Automation Hub",
+	LoadingSubtitle = "Loading System...",
+	ConfigSettings = {
+		RootFolder = nil,
+		ConfigFolder = "AutomationHub"
+	},
+	KeySystem = false
+})
+
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
@@ -16,8 +33,9 @@ local fpsCapEnabled = false
 local startTime = 0
 local elapsedTime = 0
 
+-- Create black screen overlay
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "CombinedAutomationGUI"
+screenGui.Name = "FarmingOverlay"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
@@ -65,172 +83,7 @@ timeLabel.TextSize = 28
 timeLabel.Font = Enum.Font.GothamBold
 timeLabel.Parent = statusContainer
 
-local farmButton = Instance.new("TextButton")
-farmButton.Size = UDim2.new(0, 120, 0, 40)
-farmButton.Position = UDim2.new(0, 20, 0, 20)
-farmButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-farmButton.Text = "Farming OFF"
-farmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-farmButton.TextSize = 16
-farmButton.Font = Enum.Font.GothamBold
-farmButton.Parent = screenGui
-
-local farmCorner = Instance.new("UICorner")
-farmCorner.CornerRadius = UDim.new(0, 8)
-farmCorner.Parent = farmButton
-
-local clickButton = Instance.new("TextButton")
-clickButton.Size = UDim2.new(0, 120, 0, 40)
-clickButton.Position = UDim2.new(0, 20, 0, 70)
-clickButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-clickButton.Text = "Click OFF"
-clickButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-clickButton.TextSize = 16
-clickButton.Font = Enum.Font.GothamBold
-clickButton.Parent = screenGui
-
-local clickCorner = Instance.new("UICorner")
-clickCorner.CornerRadius = UDim.new(0, 8)
-clickCorner.Parent = clickButton
-
-local keyButton = Instance.new("TextButton")
-keyButton.Size = UDim2.new(0, 120, 0, 40)
-keyButton.Position = UDim2.new(0, 20, 0, 120)
-keyButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-keyButton.Text = "Keys OFF"
-keyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-keyButton.TextSize = 16
-keyButton.Font = Enum.Font.GothamBold
-keyButton.Parent = screenGui
-
-local keyCorner = Instance.new("UICorner")
-keyCorner.CornerRadius = UDim.new(0, 8)
-keyCorner.Parent = keyButton
-
-local fpsButton = Instance.new("TextButton")
-fpsButton.Size = UDim2.new(0, 120, 0, 40)
-fpsButton.Position = UDim2.new(0, 150, 0, 20)
-fpsButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-fpsButton.Text = "FPS Cap OFF"
-fpsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-fpsButton.TextSize = 16
-fpsButton.Font = Enum.Font.GothamBold
-fpsButton.Parent = screenGui
-
-local fpsCorner = Instance.new("UICorner")
-fpsCorner.CornerRadius = UDim.new(0, 8)
-fpsCorner.Parent = fpsButton
-
-local tpContainer = Instance.new("Frame")
-tpContainer.Size = UDim2.new(0, 280, 0, 220)
-tpContainer.Position = UDim2.new(0, 20, 0, 170)
-tpContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-tpContainer.BorderSizePixel = 0
-tpContainer.Parent = screenGui
-
-local tpContainerCorner = Instance.new("UICorner")
-tpContainerCorner.CornerRadius = UDim.new(0, 10)
-tpContainerCorner.Parent = tpContainer
-
-local tpTitle = Instance.new("TextLabel")
-tpTitle.Size = UDim2.new(1, 0, 0, 35)
-tpTitle.Position = UDim2.new(0, 0, 0, 0)
-tpTitle.BackgroundTransparency = 1
-tpTitle.Text = "Teleport Coordinates"
-tpTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-tpTitle.TextSize = 18
-tpTitle.Font = Enum.Font.GothamBold
-tpTitle.Parent = tpContainer
-
-local xLabel = Instance.new("TextLabel")
-xLabel.Size = UDim2.new(0, 30, 0, 30)
-xLabel.Position = UDim2.new(0, 10, 0, 45)
-xLabel.BackgroundTransparency = 1
-xLabel.Text = "X:"
-xLabel.TextColor3 = Color3.fromRGB(76, 175, 80)
-xLabel.TextSize = 16
-xLabel.Font = Enum.Font.GothamBold
-xLabel.Parent = tpContainer
-
-local xInput = Instance.new("TextBox")
-xInput.Size = UDim2.new(0, 230, 0, 30)
-xInput.Position = UDim2.new(0, 40, 0, 45)
-xInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-xInput.Text = "438.7"
-xInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-xInput.TextSize = 14
-xInput.Font = Enum.Font.Gotham
-xInput.PlaceholderText = "Enter X coordinate"
-xInput.Parent = tpContainer
-
-local xInputCorner = Instance.new("UICorner")
-xInputCorner.CornerRadius = UDim.new(0, 5)
-xInputCorner.Parent = xInput
-
-local yLabel = Instance.new("TextLabel")
-yLabel.Size = UDim2.new(0, 30, 0, 30)
-yLabel.Position = UDim2.new(0, 10, 0, 85)
-yLabel.BackgroundTransparency = 1
-yLabel.Text = "Y:"
-yLabel.TextColor3 = Color3.fromRGB(76, 175, 80)
-yLabel.TextSize = 16
-yLabel.Font = Enum.Font.GothamBold
-yLabel.Parent = tpContainer
-
-local yInput = Instance.new("TextBox")
-yInput.Size = UDim2.new(0, 230, 0, 30)
-yInput.Position = UDim2.new(0, 40, 0, 85)
-yInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-yInput.Text = "441.8"
-yInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-yInput.TextSize = 14
-yInput.Font = Enum.Font.Gotham
-yInput.PlaceholderText = "Enter Y coordinate"
-yInput.Parent = tpContainer
-
-local yInputCorner = Instance.new("UICorner")
-yInputCorner.CornerRadius = UDim.new(0, 5)
-yInputCorner.Parent = yInput
-
-local zLabel = Instance.new("TextLabel")
-zLabel.Size = UDim2.new(0, 30, 0, 30)
-zLabel.Position = UDim2.new(0, 10, 0, 125)
-zLabel.BackgroundTransparency = 1
-zLabel.Text = "Z:"
-zLabel.TextColor3 = Color3.fromRGB(76, 175, 80)
-zLabel.TextSize = 16
-zLabel.Font = Enum.Font.GothamBold
-zLabel.Parent = tpContainer
-
-local zInput = Instance.new("TextBox")
-zInput.Size = UDim2.new(0, 230, 0, 30)
-zInput.Position = UDim2.new(0, 40, 0, 125)
-zInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-zInput.Text = "-376.2"
-zInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-zInput.TextSize = 14
-zInput.Font = Enum.Font.Gotham
-zInput.PlaceholderText = "Enter Z coordinate"
-zInput.Parent = tpContainer
-
-local zInputCorner = Instance.new("UICorner")
-zInputCorner.CornerRadius = UDim.new(0, 5)
-zInputCorner.Parent = zInput
-
-local tpButton = Instance.new("TextButton")
-tpButton.Size = UDim2.new(0, 260, 0, 40)
-tpButton.Position = UDim2.new(0, 10, 0, 170)
-tpButton.BackgroundColor3 = Color3.fromRGB(33, 150, 243)
-tpButton.Text = "TELEPORT"
-tpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-tpButton.TextSize = 16
-tpButton.Font = Enum.Font.GothamBold
-tpButton.Parent = tpContainer
-
-local tpButtonCorner = Instance.new("UICorner")
-tpButtonCorner.CornerRadius = UDim.new(0, 8)
-tpButtonCorner.Parent = tpButton
-
+-- Helper Functions
 local function formatTime(seconds)
     local hours = math.floor(seconds / 3600)
     local minutes = math.floor((seconds % 3600) / 60)
@@ -319,6 +172,254 @@ local function keyPressLoop()
     end
 end
 
+-- Create Home Tab
+Window:CreateHomeTab({
+	SupportedExecutors = {
+		"Synapse X",
+		"Wave",
+		"Solara",
+		"Executor"
+	},
+	DiscordInvite = nil,
+	Icon = 1
+})
+
+-- Automation Tab
+local AutomationTab = Window:CreateTab({
+	Name = "Automation",
+	Icon = "sports_esports",
+	ImageSource = "Material",
+	ShowTitle = true
+})
+
+AutomationTab:CreateSection("Farming Controls")
+
+local FarmingToggle = AutomationTab:CreateToggle({
+	Name = "Enable Farming Mode",
+	Description = "Activates farming overlay and tracking",
+	CurrentValue = false,
+	Callback = function(Value)
+		farmingEnabled = Value
+		
+		if farmingEnabled then
+			blackScreen.Visible = true
+			startTime = tick()
+			elapsedTime = 0
+			updateKills()
+			Luna:Notification({
+				Title = "Farming Started",
+				Icon = "check_circle",
+				ImageSource = "Material",
+				Content = "Farming mode has been activated!"
+			})
+		else
+			blackScreen.Visible = false
+			Luna:Notification({
+				Title = "Farming Stopped",
+				Icon = "cancel",
+				ImageSource = "Material",
+				Content = "Farming mode has been deactivated."
+			})
+		end
+	end
+}, "FarmingToggle")
+
+AutomationTab:CreateDivider()
+AutomationTab:CreateSection("Automation Features")
+
+local AutoClickToggle = AutomationTab:CreateToggle({
+	Name = "Auto Click",
+	Description = "Automatically clicks at intervals",
+	CurrentValue = false,
+	Callback = function(Value)
+		autoClickEnabled = Value
+		
+		if autoClickEnabled then
+			task.spawn(autoClickLoop)
+		end
+	end
+}, "AutoClickToggle")
+
+local KeyPressToggle = AutomationTab:CreateToggle({
+	Name = "Auto Key Press",
+	Description = "Automatically presses keys 1-4 and G",
+	CurrentValue = false,
+	Callback = function(Value)
+		keyPressEnabled = Value
+		
+		if keyPressEnabled then
+			task.spawn(keyPressLoop)
+		end
+	end
+}, "KeyPressToggle")
+
+local FPSCapToggle = AutomationTab:CreateToggle({
+	Name = "FPS Cap Control",
+	Description = "Manages FPS based on account type",
+	CurrentValue = false,
+	Callback = function(Value)
+		if not isMainHelper() and not isMainAccount() then
+			FPSCapToggle:Set(false)
+			Luna:Notification({
+				Title = "Access Denied",
+				Icon = "block",
+				ImageSource = "Material",
+				Content = "FPS Cap is only available for main and helper accounts!"
+			})
+			return
+		end
+		
+		fpsCapEnabled = Value
+		
+		if fpsCapEnabled then
+			task.spawn(fpsCapLoop)
+			Luna:Notification({
+				Title = "FPS Cap Enabled",
+				Icon = "speed",
+				ImageSource = "Material",
+				Content = "FPS cap control is now active."
+			})
+		else
+			setfpscap(60)
+		end
+	end
+}, "FPSCapToggle")
+
+-- Teleport Tab
+local TeleportTab = Window:CreateTab({
+	Name = "Teleport",
+	Icon = "location_on",
+	ImageSource = "Material",
+	ShowTitle = true
+})
+
+TeleportTab:CreateSection("Coordinate Teleportation")
+
+local XCoordInput = TeleportTab:CreateInput({
+	Name = "X Coordinate",
+	Description = "Enter X position",
+	PlaceholderText = "438.7",
+	CurrentValue = "438.7",
+	Numeric = true,
+	MaxCharacters = nil,
+	Enter = false,
+	Callback = function(Text)
+		-- Stored automatically
+	end
+}, "XCoord")
+
+local YCoordInput = TeleportTab:CreateInput({
+	Name = "Y Coordinate",
+	Description = "Enter Y position",
+	PlaceholderText = "441.8",
+	CurrentValue = "441.8",
+	Numeric = true,
+	MaxCharacters = nil,
+	Enter = false,
+	Callback = function(Text)
+		-- Stored automatically
+	end
+}, "YCoord")
+
+local ZCoordInput = TeleportTab:CreateInput({
+	Name = "Z Coordinate",
+	Description = "Enter Z position",
+	PlaceholderText = "-376.2",
+	CurrentValue = "-376.2",
+	Numeric = true,
+	MaxCharacters = nil,
+	Enter = false,
+	Callback = function(Text)
+		-- Stored automatically
+	end
+}, "ZCoord")
+
+-- Store coordinates in variables
+local currentX = "438.7"
+local currentY = "441.8"
+local currentZ = "-376.2"
+
+local TeleportButton = TeleportTab:CreateButton({
+	Name = "Teleport to Coordinates",
+	Description = "Click to teleport to entered coordinates",
+	Callback = function()
+		local x = tonumber(currentX)
+		local y = tonumber(currentY)
+		local z = tonumber(currentZ)
+		
+		if x and y and z then
+			teleportToCoordinates(x, y, z)
+			Luna:Notification({
+				Title = "Teleport Success",
+				Icon = "check_circle",
+				ImageSource = "Material",
+				Content = string.format("Teleported to: %.1f, %.1f, %.1f", x, y, z)
+			})
+		else
+			Luna:Notification({
+				Title = "Teleport Failed",
+				Icon = "error",
+				ImageSource = "Material",
+				Content = "Invalid coordinates! Please enter valid numbers."
+			})
+		end
+	end
+})
+
+-- Settings Tab
+local SettingsTab = Window:CreateTab({
+	Name = "Settings",
+	Icon = "settings",
+	ImageSource = "Material",
+	ShowTitle = true
+})
+
+SettingsTab:CreateSection("Account Information")
+
+local accountType = isMainAccount() and "Main Account" or (isMainHelper() and "Helper Account" or "Regular Account")
+
+SettingsTab:CreateLabel({
+	Text = "Current User: " .. player.Name,
+	Style = 2
+})
+
+SettingsTab:CreateLabel({
+	Text = "Account Type: " .. accountType,
+	Style = 2
+})
+
+SettingsTab:CreateDivider()
+SettingsTab:CreateSection("Configuration")
+
+SettingsTab:CreateParagraph({
+	Title = "Main Account",
+	Text = "Configured Main Account: " .. getgenv().mainaccount
+})
+
+local helpersList = table.concat(getgenv().mainhelpers, ", ")
+if helpersList == "" then helpersList = "None configured" end
+
+SettingsTab:CreateParagraph({
+	Title = "Helper Accounts",
+	Text = "Configured Helpers: " .. helpersList
+})
+
+SettingsTab:CreateLabel({
+	Text = "To change accounts, edit the script configuration",
+	Style = 3
+})
+
+-- Config Tab
+local ConfigTab = Window:CreateTab({
+	Name = "Config",
+	Icon = "save",
+	ImageSource = "Material",
+	ShowTitle = true
+})
+
+ConfigTab:BuildConfigSection()
+
+-- Background Update Loops
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -338,89 +439,12 @@ task.spawn(function()
     end
 end)
 
-farmButton.MouseButton1Click:Connect(function()
-    farmingEnabled = not farmingEnabled
-    
-    if farmingEnabled then
-        farmButton.Text = "Farming ON"
-        farmButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-        blackScreen.Visible = true
-        startTime = tick()
-        elapsedTime = 0
-        updateKills()
-    else
-        farmButton.Text = "Farming OFF"
-        farmButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-        blackScreen.Visible = false
-    end
-end)
+Luna:Notification({
+	Title = "Automation Hub Loaded",
+	Icon = "check_circle",
+	ImageSource = "Material",
+	Content = string.format("Welcome %s! System loaded successfully.", player.Name)
+})
 
-clickButton.MouseButton1Click:Connect(function()
-    autoClickEnabled = not autoClickEnabled
-    
-    if autoClickEnabled then
-        clickButton.Text = "Click ON"
-        clickButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-        task.spawn(autoClickLoop)
-    else
-        clickButton.Text = "Click OFF"
-        clickButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-    end
-end)
-
-keyButton.MouseButton1Click:Connect(function()
-    keyPressEnabled = not keyPressEnabled
-    
-    if keyPressEnabled then
-        keyButton.Text = "Keys ON"
-        keyButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-        task.spawn(keyPressLoop)
-    else
-        keyButton.Text = "Keys OFF"
-        keyButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-    end
-end)
-
-fpsButton.MouseButton1Click:Connect(function()
-    if not isMainHelper() and not isMainAccount() then
-        fpsButton.Text = "Not Allowed!"
-        fpsButton.BackgroundColor3 = Color3.fromRGB(255, 152, 0)
-        task.wait(1)
-        fpsButton.Text = "FPS Cap OFF"
-        fpsButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-        return
-    end
-    
-    fpsCapEnabled = not fpsCapEnabled
-    
-    if fpsCapEnabled then
-        fpsButton.Text = "FPS Cap ON"
-        fpsButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-        task.spawn(fpsCapLoop)
-    else
-        fpsButton.Text = "FPS Cap OFF"
-        fpsButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-        setfpscap(60)
-    end
-end)
-
-tpButton.MouseButton1Click:Connect(function()
-    local x = tonumber(xInput.Text)
-    local y = tonumber(yInput.Text)
-    local z = tonumber(zInput.Text)
-    
-    if x and y and z then
-        teleportToCoordinates(x, y, z)
-        tpButton.Text = "TELEPORTED!"
-        tpButton.BackgroundColor3 = Color3.fromRGB(76, 175, 80)
-        task.wait(1)
-        tpButton.Text = "TELEPORT"
-        tpButton.BackgroundColor3 = Color3.fromRGB(33, 150, 243)
-    else
-        tpButton.Text = "INVALID COORDS!"
-        tpButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-        task.wait(1)
-        tpButton.Text = "TELEPORT"
-        tpButton.BackgroundColor3 = Color3.fromRGB(33, 150, 243)
-    end
-end)
+print("✓ Automation Hub loaded successfully!")
+print("✓ User:", player.Name, "| Type:", accountType)

@@ -1,7 +1,7 @@
-loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
+getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
 
-getgenv().mainaccount = "YourMainUsername"
-getgenv().mainhelpers = {"alt1", "alt2"}
+loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
 
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")

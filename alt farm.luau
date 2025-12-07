@@ -168,7 +168,7 @@ local function autoClickLoop()
 end
 
 local function keyPressLoop()
-    local keys = {"One", "Two", "Three", "Four", "G"}
+    local keys = {"One", "Two", "Three", "Four"}
     while keyPressEnabled do
         for _, key in ipairs(keys) do
             if not keyPressEnabled then break end

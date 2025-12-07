@@ -43,6 +43,8 @@ local elapsedTime = 0
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "FarmingOverlay"
 screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true -- This ensures it covers the entire screen including top bar
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
 
 local blackScreen = Instance.new("Frame")
@@ -50,6 +52,7 @@ blackScreen.Size = UDim2.new(1, 0, 1, 0)
 blackScreen.Position = UDim2.new(0, 0, 0, 0)
 blackScreen.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 blackScreen.BorderSizePixel = 0
+blackScreen.ZIndex = 10
 blackScreen.Visible = false
 blackScreen.Parent = screenGui
 

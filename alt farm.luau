@@ -641,9 +641,9 @@ local TeleportTab = Window:CreateTab({
 
 TeleportTab:CreateSection("Coordinate Teleportation")
 
-local currentX = "438.7"
-local currentY = "441.8"
-local currentZ = "-376.2"
+local currentX = "357"
+local currentY = "439"
+local currentZ = "421"
 
 local XCoordInput = TeleportTab:CreateInput({
 	Name = "X Coordinate",

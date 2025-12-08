@@ -1,11 +1,10 @@
-print("executed")
 getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
 getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
 getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
-getgenv().localServerURL = "http://192.168.100.244:5000" -- ADDED: Local server URL
 getgenv().checkInterval = 60
 getgenv().killMilestone = 100
 getgenv().lastKillCount = getgenv().lastKillCount or 0
+print("executed")
 
 if not _G.InfiniteYieldLoaded then
     loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
@@ -48,16 +47,18 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.DisplayOrder = 999
 screenGui.Parent = playerGui
 
+-- MODIFIED: Completely black opaque overlay
 local overlay = Instance.new("Frame")
 overlay.Name = "Overlay"
 overlay.Size = UDim2.new(1, 0, 1, 0)
 overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-overlay.BackgroundTransparency = 0
+overlay.BackgroundTransparency = 0 -- Changed from 0.3 to 0 (fully opaque)
 overlay.BorderSizePixel = 0
 overlay.ZIndex = 10
 overlay.Visible = false
 overlay.Parent = screenGui
 
+-- MODIFIED: Added a black background panel for the status label
 local statusPanel = Instance.new("Frame")
 statusPanel.Name = "StatusPanel"
 statusPanel.Size = UDim2.new(0, 400, 0, 180)
@@ -82,6 +83,7 @@ statusLabel.TextXAlignment = Enum.TextXAlignment.Center
 statusLabel.LineHeight = 1.8
 statusLabel.Parent = statusPanel
 
+-- MODIFIED: Added a title bar
 local titleBar = Instance.new("Frame")
 titleBar.Name = "TitleBar"
 titleBar.Size = UDim2.new(1, 0, 0, 40)
@@ -193,32 +195,6 @@ local function teleport(x, y, z)
 end
 
 local lastWebhookTime = 0
-local lastLocalServerTime = 0
-
--- MODIFIED: Added local server send function
-local function sendToLocalServer(data)
-    local now = tick()
-    if now - lastLocalServerTime < 5 then return false end
-    
-    local url = getgenv().localServerURL
-    if not url or url == "" then return false end
-    
-    local success, result = pcall(function()
-        request({
-            Url = url,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = Services.HttpService:JSONEncode(data)
-        })
-    end)
-    
-    lastLocalServerTime = now
-    if not success then
-        warn("Local server request failed:", result)
-    end
-    return success
-end
-
 local function sendWebhook(title, description, color, ping)
     local now = tick()
     if now - lastWebhookTime < 5 then return false end
@@ -298,39 +274,6 @@ local function checkAccounts()
     
     statusText = statusText .. accountDetails
     
-    -- MODIFIED: Send to local server first
-    local localServerData = {
-        type = "account_status",
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
-        placeId = game.PlaceId,
-        mainAccount = {
-            name = getgenv().mainaccount,
-            online = mainOnline
-        },
-        helpers = {
-            online = helpersOnline,
-            total = totalHelpers,
-            details = {}
-        },
-        allPlayers = Services.Players:GetPlayers()
-    }
-    
-    for _, accountName in ipairs(allMonitoredAccounts) do
-        table.insert(localServerData.helpers.details, {
-            name = accountName,
-            online = playerCache[accountName:lower()] or false
-        })
-    end
-    
-    local localSuccess = sendToLocalServer(localServerData)
-    
-    if localSuccess then
-        print("✓ Data sent to local server:", getgenv().localServerURL)
-    else
-        print("✗ Failed to send to local server")
-    end
-    
-    -- Then send to Discord webhook
     sendWebhook(
         "📊 Account Status",
         statusText,
@@ -345,17 +288,6 @@ local function checkAccounts()
         local lastMilestone = math.floor(lastKills / getgenv().killMilestone)
         
         if currentMilestone > lastMilestone and kills > 0 then
-            -- Send milestone to local server
-            local milestoneData = {
-                type = "milestone",
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
-                account = getgenv().mainaccount,
-                kills = kills,
-                milestone = getgenv().killMilestone
-            }
-            
-            sendToLocalServer(milestoneData)
-            
             sendWebhook(
                 "🎉 Kill Milestone Reached!",
                 string.format("**%s** has reached **%d kills**! (Every %d kills)", 
@@ -495,15 +427,6 @@ Tabs.Monitor:AddButton({
             local mainOnline, helpersOnline, totalHelpers = checkAccounts()
             monitorStatus:SetDesc(string.format("Main: %s | Helpers: %d/%d",
                 mainOnline and "✅" or "❌", helpersOnline, totalHelpers))
-            
-            -- Show notification about local server
-            if getgenv().localServerURL and getgenv().localServerURL ~= "" then
-                Fluent:Notify({
-                    Title = "Data Sent",
-                    Content = "Account data sent to local server",
-                    Duration = 3
-                })
-            end
         end)
         
         if not success then
@@ -553,18 +476,6 @@ Tabs.Teleport:AddButton({
     end
 })
 
--- MODIFIED: Added Local Server URL input
-Tabs.Settings:AddInput("LocalServerInput", {
-    Title = "Local Server URL",
-    Default = getgenv().localServerURL,
-    Placeholder = "http://192.168.100.244:5000",
-    Numeric = false,
-    Finished = false,
-    Callback = function(value)
-        getgenv().localServerURL = value
-    end
-})
-
 Tabs.Settings:AddInput("WebhookInput", {
     Title = "Webhook URL",
     Default = getgenv().webhookURL,
@@ -606,51 +517,6 @@ Tabs.Settings:AddParagraph({
     Content = string.format("Name: %s\nType: %s", player.Name, accountType)
 })
 
--- MODIFIED: Added Local Server status
-local localServerStatus = Tabs.Settings:AddParagraph({
-    Title = "Local Server",
-    Content = "Status: Not tested"
-})
-
-Tabs.Settings:AddButton({
-    Title = "Test Local Server",
-    Description = "Test connection to local server",
-    Callback = function()
-        local testData = {
-            type = "test",
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
-            message = "Connection test from Automation Hub",
-            player = player.Name,
-            placeId = game.PlaceId
-        }
-        
-        local success, result = pcall(function()
-            request({
-                Url = getgenv().localServerURL,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = Services.HttpService:JSONEncode(testData)
-            })
-        end)
-        
-        if success then
-            localServerStatus:SetDesc("Status: ✅ Connected")
-            Fluent:Notify({
-                Title = "Success",
-                Content = "Local server connection test successful!",
-                Duration = 5
-            })
-        else
-            localServerStatus:SetDesc("Status: ❌ Failed")
-            Fluent:Notify({
-                Title = "Error",
-                Content = "Local server connection failed: " .. tostring(result),
-                Duration = 5
-            })
-        end
-    end
-})
-
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
@@ -678,6 +544,7 @@ MainConnection = Services.RunService.Heartbeat:Connect(function()
         statusLabel.Text = string.format("Status: Farming\nKills: %d\nTime: %s", 
             kills, formatTime(elapsed))
     end
+    -- MODIFIED: Fixed reference from overlay:FindFirstChild("StatusLabel") to statusLabel
     
     if State.KeyPress then
         handleKeyPress()
@@ -734,4 +601,3 @@ pcall(function() setfpscap(60) end)
 State.CurrentFps = 60
 
 print("Automation Hub Loaded")
-print("Local Server URL:", getgenv().localServerURL)

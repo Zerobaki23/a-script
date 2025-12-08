@@ -17,8 +17,7 @@ local Services = {
     HttpService = game:GetService("HttpService"),
     UserInputService = game:GetService("UserInputService"),
     VirtualUser = game:GetService("VirtualUser"),
-    StarterGui = game:GetService("StarterGui"),
-    ReplicatedStorage = game:GetService("ReplicatedStorage")
+    StarterGui = game:GetService("StarterGui")
 }
 
 local player = Services.Players.LocalPlayer
@@ -103,39 +102,17 @@ local function getKills()
     return State.CachedKills
 end
 
+local Keys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four}
 local KeyIndex = 1
 local function handleKeyPress()
-    if not State.KeyPress or tick() - State.LastKeyPress < 0.3 then return end
+    if not State.KeyPress or tick() - State.LastKeyPress < 0.2 then return end
     
-    if KeyIndex <= 4 then
-        local remoteName
-        if KeyIndex == 1 then
-            remoteName = "Ability1"
-        elseif KeyIndex == 2 then
-            remoteName = "Ability2"
-        elseif KeyIndex == 3 then
-            remoteName = "Ability3"
-        elseif KeyIndex == 4 then
-            remoteName = "Ability4"
-        end
-        
-        local remote = Services.ReplicatedStorage:FindFirstChild(remoteName)
-        if not remote then
-            remote = Services.ReplicatedStorage:FindFirstChild("RemoteEvent")
-        end
-        
-        if remote and remote:IsA("RemoteEvent") then
-            remote:FireServer()
-        elseif remote and remote:IsA("RemoteFunction") then
-            remote:InvokeServer()
-        end
-    elseif KeyIndex == 5 then
-        Services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.G, false, game)
-        Services.RunService.RenderStepped:Wait()
-        Services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.G, false, game)
-    end
+    local key = Keys[KeyIndex]
+    Services.VirtualInputManager:SendKeyEvent(true, key, false, game)
+    Services.RunService.RenderStepped:Wait()
+    Services.VirtualInputManager:SendKeyEvent(false, key, false, game)
     
-    KeyIndex = KeyIndex < 5 and KeyIndex + 1 or 1
+    KeyIndex = KeyIndex < 4 and KeyIndex + 1 or 1
     State.LastKeyPress = tick()
 end
 
@@ -358,7 +335,7 @@ Tabs.Automation:AddToggle("FarmingToggle", {
 
 Tabs.Automation:AddToggle("KeyPressToggle", {
     Title = "Auto Key Press",
-    Description = "Press 1,2,3,4 (Remote) then G (Virtual)",
+    Description = "Press keys 1-4 automatically",
     Default = false,
     Callback = function(value)
         State.KeyPress = value

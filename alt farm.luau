@@ -46,29 +46,64 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.DisplayOrder = 999
 screenGui.Parent = playerGui
 
+-- MODIFIED: Completely black opaque overlay
 local overlay = Instance.new("Frame")
 overlay.Name = "Overlay"
 overlay.Size = UDim2.new(1, 0, 1, 0)
 overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-overlay.BackgroundTransparency = 0.3
+overlay.BackgroundTransparency = 0 -- Changed from 0.3 to 0 (fully opaque)
 overlay.BorderSizePixel = 0
 overlay.ZIndex = 10
 overlay.Visible = false
 overlay.Parent = screenGui
 
+-- MODIFIED: Added a black background panel for the status label
+local statusPanel = Instance.new("Frame")
+statusPanel.Name = "StatusPanel"
+statusPanel.Size = UDim2.new(0, 400, 0, 180)
+statusPanel.Position = UDim2.new(0.5, -200, 0.5, -90)
+statusPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+statusPanel.BackgroundTransparency = 0
+statusPanel.BorderSizePixel = 0
+statusPanel.ZIndex = 11
+statusPanel.Parent = overlay
+
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Name = "StatusLabel"
-statusLabel.Size = UDim2.new(0, 300, 0, 120)
-statusLabel.Position = UDim2.new(0.5, -150, 0.5, -60)
+statusLabel.Size = UDim2.new(1, -40, 1, -40)
+statusLabel.Position = UDim2.new(0, 20, 0, 20)
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "Status: Inactive\nKills: 0\nTime: 00:00:00"
 statusLabel.TextColor3 = Color3.fromRGB(76, 175, 80)
-statusLabel.TextSize = 22
+statusLabel.TextSize = 24
 statusLabel.Font = Enum.Font.GothamBold
 statusLabel.TextYAlignment = Enum.TextYAlignment.Center
 statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-statusLabel.LineHeight = 1.5
-statusLabel.Parent = overlay
+statusLabel.LineHeight = 1.8
+statusLabel.Parent = statusPanel
+
+-- MODIFIED: Added a title bar
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+titleBar.BackgroundTransparency = 0
+titleBar.BorderSizePixel = 0
+titleBar.ZIndex = 12
+titleBar.Parent = statusPanel
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, 0, 1, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "FARMING STATUS"
+titleLabel.TextColor3 = Color3.fromRGB(76, 175, 80)
+titleLabel.TextSize = 18
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextYAlignment = Enum.TextYAlignment.Center
+titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+titleLabel.Parent = titleBar
 
 local function formatTime(seconds)
     return string.format("%02d:%02d:%02d", 
@@ -102,7 +137,6 @@ local function getKills()
     return State.CachedKills
 end
 
--- MODIFIED: Added 'G' key to the sequence
 local Keys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.G}
 local KeyIndex = 1
 local function handleKeyPress()
@@ -113,7 +147,6 @@ local function handleKeyPress()
     Services.RunService.RenderStepped:Wait()
     Services.VirtualInputManager:SendKeyEvent(false, key, false, game)
     
-    -- MODIFIED: Changed to 5 keys instead of 4
     KeyIndex = KeyIndex < 5 and KeyIndex + 1 or 1
     State.LastKeyPress = tick()
 end
@@ -321,7 +354,6 @@ local Tabs = {
 
 local Options = Fluent.Options
 
--- MODIFIED: Updated description to include 'G' key
 Tabs.Automation:AddToggle("FarmingToggle", {
     Title = "Farming Mode",
     Description = "Enable farming overlay",
@@ -336,7 +368,6 @@ Tabs.Automation:AddToggle("FarmingToggle", {
     end
 })
 
--- MODIFIED: Updated description to include 'G' key
 Tabs.Automation:AddToggle("KeyPressToggle", {
     Title = "Auto Key Press",
     Description = "Press keys 1-4 and G automatically",
@@ -509,9 +540,10 @@ MainConnection = Services.RunService.Heartbeat:Connect(function()
     if State.Farming then
         local elapsed = now - State.StartTime
         local kills = getKills()
-        overlay:FindFirstChild("StatusLabel").Text = string.format("Status: Farming\nKills: %d\nTime: %s", 
+        statusLabel.Text = string.format("Status: Farming\nKills: %d\nTime: %s", 
             kills, formatTime(elapsed))
     end
+    -- MODIFIED: Fixed reference from overlay:FindFirstChild("StatusLabel") to statusLabel
     
     if State.KeyPress then
         handleKeyPress()

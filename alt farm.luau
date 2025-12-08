@@ -1,10 +1,11 @@
-getgenv().mainaccount = getgenv().mainaccount or "zerobakiiii"
+getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
 getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
 getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
 getgenv().localServerURL = "http://192.168.100.244:5000"
 getgenv().checkInterval = 60
 getgenv().killMilestone = 100
 getgenv().lastKillCount = getgenv().lastKillCount or 0
+getgenv().lastKillUpdate = getgenv().lastKillUpdate or 0
 
 if not _G.InfiniteYieldLoaded then
     loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
@@ -40,7 +41,6 @@ local State = {
     CurrentFps = 60
 }
 
--- Create the GUI
 print("Creating GUI...")
 
 local screenGui = Instance.new("ScreenGui")
@@ -50,7 +50,6 @@ screenGui.IgnoreGuiInset = true
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.DisplayOrder = 999
 
--- Try to parent to CoreGui if PlayerGui doesn't work
 local success, errorMsg = pcall(function()
     screenGui.Parent = playerGui
 end)
@@ -61,12 +60,11 @@ if not success then
     screenGui.Parent = Services.CoreGui
 end
 
--- FIXED: Typo in BackgroundTransparency property
 local overlay = Instance.new("Frame")
 overlay.Name = "Overlay"
 overlay.Size = UDim2.new(1, 0, 1, 0)
 overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-overlay.BackgroundTransparency = 0  -- Fixed: was "overground.BackgroundTransparency = 0"
+overlay.BackgroundTransparency = 0
 overlay.BorderSizePixel = 0
 overlay.ZIndex = 10
 overlay.Visible = false
@@ -243,6 +241,30 @@ local function sendToLocalServer(data)
     end
 end
 
+-- NEW: Function to send kill updates to local server
+local function sendKillUpdate()
+    local now = tick()
+    if now - getgenv().lastKillUpdate < 5 then return end
+    
+    local kills = getKills()
+    local url = getgenv().localServerURL
+    if not url or url == "" then return end
+    
+    local killData = {
+        type = "kill_update",
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
+        account = getgenv().mainaccount,
+        kills = kills
+    }
+    
+    local success = sendToLocalServer(killData)
+    
+    if success then
+        getgenv().lastKillUpdate = now
+        print("✓ Kill update sent:", kills)
+    end
+end
+
 local function sendWebhook(title, description, color, ping)
     local now = tick()
     if now - lastWebhookTime < 5 then return false end
@@ -335,7 +357,8 @@ local function checkAccounts()
             online = helpersOnline,
             total = totalHelpers,
             details = {}
-        }
+        },
+        kills = getKills()  -- ADDED: Send kills with account status
     }
     
     for _, accountName in ipairs(allMonitoredAccounts) do
@@ -424,7 +447,6 @@ local function setupAntiAFK()
     end
 end
 
--- Load Fluent UI with error handling
 print("Loading Fluent UI...")
 
 local Fluent, SaveManager, InterfaceManager
@@ -436,7 +458,6 @@ end)
 
 if not success then
     warn("Failed to load Fluent UI:", errorMsg)
-    -- Create a simple fallback GUI
     Services.StarterGui:SetCore("SendNotification", {
         Title = "Error",
         Text = "Failed to load Fluent UI. Check console.",
@@ -734,6 +755,9 @@ MainConnection = Services.RunService.Heartbeat:Connect(function()
         local kills = getKills()
         statusLabel.Text = string.format("Status: Farming\nKills: %d\nTime: %s", 
             kills, formatTime(elapsed))
+        
+        -- Send kill update to local server every 5 seconds when farming
+        sendKillUpdate()
     end
     
     if State.KeyPress then
@@ -793,3 +817,4 @@ State.CurrentFps = 60
 print("Automation Hub Loaded")
 print("Local Server URL:", getgenv().localServerURL or "Not set")
 print("Ready to use!")
+print("Kills will be sent to local server every 5 seconds when farming")

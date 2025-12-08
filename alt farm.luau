@@ -3,7 +3,7 @@ getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
 getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
 getgenv().checkInterval = 60
 getgenv().killMilestone = 100
-getgenv().lastKillCount = 0
+getgenv().lastKillCount = getgenv().lastKillCount or 0
 
 if not _G.InfiniteYieldLoaded then
     loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
@@ -166,7 +166,7 @@ local function sendWebhook(title, description, color, ping)
     local url = getgenv().webhookURL
     if not url or url == "" or url:find("YOUR_WEBHOOK") then return false end
     
-    local success = pcall(function()
+    local success, result = pcall(function()
         local data = {
             content = ping and "@everyone" or "",
             embeds = {{
@@ -186,6 +186,9 @@ local function sendWebhook(title, description, color, ping)
     end)
     
     lastWebhookTime = now
+    if not success then
+        warn("Webhook failed:", result)
+    end
     return success
 end
 
@@ -214,10 +217,39 @@ local function checkAccounts()
     
     State.LastAccountCheck = tick()
     
+    local serverInfo = "Server: " .. game.PlaceId
+    local statusText = string.format("**Account Status Report**\n\nMain Account: %s\nHelpers Online: %d/%d\n\n%s", 
+        mainOnline and "✅ Online" or "❌ Offline", 
+        helpersOnline, 
+        totalHelpers,
+        serverInfo)
+    
+    local allMonitoredAccounts = {}
+    table.insert(allMonitoredAccounts, getgenv().mainaccount)
+    for _, helper in ipairs(getgenv().mainhelpers) do
+        table.insert(allMonitoredAccounts, helper)
+    end
+    
+    local accountDetails = "\n\n**Monitored Accounts:**\n"
+    for _, accountName in ipairs(allMonitoredAccounts) do
+        local onlineStatus = playerCache[accountName:lower()] and "🟢 Online" or "🔴 Offline"
+        accountDetails = accountDetails .. string.format("- %s: %s\n", accountName, onlineStatus)
+    end
+    
+    statusText = statusText .. accountDetails
+    
+    sendWebhook(
+        "📊 Account Status",
+        statusText,
+        mainOnline and 65280 or 16711680,
+        false
+    )
+    
     if mainOnline and getgenv().killMilestone > 0 then
         local kills = getKills()
+        local lastKills = getgenv().lastKillCount or 0
         local currentMilestone = math.floor(kills / getgenv().killMilestone)
-        local lastMilestone = math.floor(getgenv().lastKillCount / getgenv().killMilestone)
+        local lastMilestone = math.floor(lastKills / getgenv().killMilestone)
         
         if currentMilestone > lastMilestone and kills > 0 then
             sendWebhook(
@@ -336,7 +368,7 @@ Tabs.Automation:AddToggle("AntiAFKToggle", {
     end
 })
 
-local statusLabel = Tabs.Monitor:AddParagraph({
+local monitorStatus = Tabs.Monitor:AddParagraph({
     Title = "Status",
     Content = "Monitoring: Inactive"
 })
@@ -347,7 +379,7 @@ Tabs.Monitor:AddToggle("MonitorToggle", {
     Default = false,
     Callback = function(value)
         State.AccountChecker = value
-        statusLabel:SetDesc(value and "🟢 Monitoring Active" or "🔴 Monitoring Inactive")
+        monitorStatus:SetDesc(value and "🟢 Monitoring Active" or "🔴 Monitoring Inactive")
     end
 })
 
@@ -355,9 +387,20 @@ Tabs.Monitor:AddButton({
     Title = "Check Now",
     Description = "Manual status check",
     Callback = function()
-        local mainOnline, helpersOnline, totalHelpers = checkAccounts()
-        statusLabel:SetDesc(string.format("Main: %s | Helpers: %d/%d",
-            mainOnline and "✅" or "❌", helpersOnline, totalHelpers))
+        local success, result = pcall(function()
+            local mainOnline, helpersOnline, totalHelpers = checkAccounts()
+            monitorStatus:SetDesc(string.format("Main: %s | Helpers: %d/%d",
+                mainOnline and "✅" or "❌", helpersOnline, totalHelpers))
+        end)
+        
+        if not success then
+            warn("Check accounts error:", result)
+            Fluent:Notify({
+                Title = "Error",
+                Content = "Failed to check accounts: " .. tostring(result),
+                Duration = 5
+            })
+        end
     end
 })
 
@@ -462,7 +505,7 @@ MainConnection = Services.RunService.Heartbeat:Connect(function()
     if State.Farming then
         local elapsed = now - State.StartTime
         local kills = getKills()
-        statusLabel.Text = string.format("Status: Farming\nKills: %d\nTime: %s", 
+        overlay:FindFirstChild("StatusLabel").Text = string.format("Status: Farming\nKills: %d\nTime: %s", 
             kills, formatTime(elapsed))
     end
     
@@ -475,7 +518,7 @@ MainConnection = Services.RunService.Heartbeat:Connect(function()
     end
     
     if State.AccountChecker and now - State.LastAccountCheck >= getgenv().checkInterval then
-        checkAccounts()
+        pcall(checkAccounts)
     end
 end)
 

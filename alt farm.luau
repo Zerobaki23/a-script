@@ -1,7 +1,7 @@
-getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
+getgenv().mainaccount = getgenv().mainaccount or "zerobakiiii"
 getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
 getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
-getgenv().localServerURL = "http://192.168.100.244:5000" -- Local server URL
+getgenv().localServerURL = "http://192.168.100.244:5000"
 getgenv().checkInterval = 60
 getgenv().killMilestone = 100
 getgenv().lastKillCount = getgenv().lastKillCount or 0
@@ -18,7 +18,8 @@ local Services = {
     HttpService = game:GetService("HttpService"),
     UserInputService = game:GetService("UserInputService"),
     VirtualUser = game:GetService("VirtualUser"),
-    StarterGui = game:GetService("StarterGui")
+    StarterGui = game:GetService("StarterGui"),
+    CoreGui = game:GetService("CoreGui")
 }
 
 local player = Services.Players.LocalPlayer
@@ -39,23 +40,39 @@ local State = {
     CurrentFps = 60
 }
 
+-- Create the GUI
+print("Creating GUI...")
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "FarmingOverlay"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.DisplayOrder = 999
-screenGui.Parent = playerGui
 
+-- Try to parent to CoreGui if PlayerGui doesn't work
+local success, errorMsg = pcall(function()
+    screenGui.Parent = playerGui
+end)
+
+if not success then
+    print("Failed to parent to PlayerGui:", errorMsg)
+    print("Trying CoreGui...")
+    screenGui.Parent = Services.CoreGui
+end
+
+-- FIXED: Typo in BackgroundTransparency property
 local overlay = Instance.new("Frame")
 overlay.Name = "Overlay"
 overlay.Size = UDim2.new(1, 0, 1, 0)
 overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-overground.BackgroundTransparency = 0
+overlay.BackgroundTransparency = 0  -- Fixed: was "overground.BackgroundTransparency = 0"
 overlay.BorderSizePixel = 0
 overlay.ZIndex = 10
 overlay.Visible = false
 overlay.Parent = screenGui
+
+print("Created overlay frame")
 
 local statusPanel = Instance.new("Frame")
 statusPanel.Name = "StatusPanel"
@@ -102,6 +119,8 @@ titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextYAlignment = Enum.TextYAlignment.Center
 titleLabel.TextXAlignment = Enum.TextXAlignment.Center
 titleLabel.Parent = titleBar
+
+print("GUI created successfully")
 
 local function formatTime(seconds)
     return string.format("%02d:%02d:%02d", 
@@ -282,7 +301,7 @@ local function checkAccounts()
     
     State.LastAccountCheck = tick()
     
-    local serverInfo = "Server: " .. tostring(game.PlaceId) -- FIXED: Added tostring()
+    local serverInfo = "Server: " .. tostring(game.PlaceId)
     local statusText = string.format("**Account Status Report**\n\nMain Account: %s\nHelpers Online: %d/%d\n\n%s", 
         mainOnline and "✅ Online" or "❌ Offline", 
         helpersOnline, 
@@ -307,7 +326,7 @@ local function checkAccounts()
     local localServerData = {
         type = "account_status",
         timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
-        placeId = tostring(game.PlaceId), -- FIXED: Added tostring()
+        placeId = tostring(game.PlaceId),
         mainAccount = {
             name = getgenv().mainaccount,
             online = mainOnline
@@ -326,7 +345,7 @@ local function checkAccounts()
         })
     end
     
-    -- Get player names (not full player objects which can't be serialized)
+    -- Get player names
     local playerNames = {}
     for _, plr in ipairs(Services.Players:GetPlayers()) do
         table.insert(playerNames, plr.Name)
@@ -334,12 +353,6 @@ local function checkAccounts()
     localServerData.allPlayers = playerNames
     
     local localSuccess = sendToLocalServer(localServerData)
-    
-    if localSuccess then
-        print("✓ Data sent to local server")
-    else
-        print("✗ Failed to send to local server")
-    end
     
     -- Then send to Discord webhook
     sendWebhook(
@@ -411,9 +424,28 @@ local function setupAntiAFK()
     end
 end
 
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+-- Load Fluent UI with error handling
+print("Loading Fluent UI...")
+
+local Fluent, SaveManager, InterfaceManager
+local success, errorMsg = pcall(function()
+    Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+    SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+    InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+end)
+
+if not success then
+    warn("Failed to load Fluent UI:", errorMsg)
+    -- Create a simple fallback GUI
+    Services.StarterGui:SetCore("SendNotification", {
+        Title = "Error",
+        Text = "Failed to load Fluent UI. Check console.",
+        Duration = 10
+    })
+    return
+end
+
+print("Fluent UI loaded successfully")
 
 local Window = Fluent:CreateWindow({
     Title = "Automation Hub",
@@ -439,11 +471,15 @@ Tabs.Automation:AddToggle("FarmingToggle", {
     Description = "Enable farming overlay",
     Default = false,
     Callback = function(value)
+        print("Farming toggle:", value)
         State.Farming = value
         overlay.Visible = value
         if value then
             State.StartTime = tick()
             State.CachedKills = getKills()
+            print("Farming started")
+        else
+            print("Farming stopped")
         end
     end
 })
@@ -453,6 +489,7 @@ Tabs.Automation:AddToggle("KeyPressToggle", {
     Description = "Press keys 1-4 and G automatically",
     Default = false,
     Callback = function(value)
+        print("Key press toggle:", value)
         State.KeyPress = value
         if value then
             KeyIndex = 1
@@ -465,6 +502,7 @@ Tabs.Automation:AddToggle("FpsToggle", {
     Description = "Main: 240 FPS | Helpers: 3 FPS",
     Default = false,
     Callback = function(value)
+        print("FPS toggle:", value)
         State.FpsCap = value
         if not value then
             State.CurrentFps = 60
@@ -478,6 +516,7 @@ Tabs.Automation:AddToggle("AntiAFKToggle", {
     Description = "Prevent being kicked for AFK",
     Default = false,
     Callback = function(value)
+        print("Anti-AFK toggle:", value)
         State.AntiAFK = value
         setupAntiAFK()
     end
@@ -493,6 +532,7 @@ Tabs.Monitor:AddToggle("MonitorToggle", {
     Description = "Track accounts and send webhooks",
     Default = false,
     Callback = function(value)
+        print("Account monitor toggle:", value)
         State.AccountChecker = value
         monitorStatus:SetDesc(value and "🟢 Monitoring Active" or "🔴 Monitoring Inactive")
     end
@@ -502,12 +542,12 @@ Tabs.Monitor:AddButton({
     Title = "Check Now",
     Description = "Manual status check",
     Callback = function()
+        print("Manual check triggered")
         local success, result = pcall(function()
             local mainOnline, helpersOnline, totalHelpers = checkAccounts()
             monitorStatus:SetDesc(string.format("Main: %s | Helpers: %d/%d",
                 mainOnline and "✅" or "❌", helpersOnline, totalHelpers))
             
-            -- Show notification about local server
             if getgenv().localServerURL and getgenv().localServerURL ~= "" then
                 Fluent:Notify({
                     Title = "Data Sent",
@@ -549,6 +589,7 @@ Tabs.Teleport:AddButton({
     Title = "Teleport",
     Description = "Teleport to coordinates",
     Callback = function()
+        print("Teleporting to coordinates:", coords.x, coords.y, coords.z)
         if teleport(coords.x, coords.y, coords.z) then
             Window:Dialog({
                 Title = "Success",
@@ -572,6 +613,7 @@ Tabs.Settings:AddInput("LocalServerInput", {
     Finished = false,
     Callback = function(value)
         getgenv().localServerURL = value
+        print("Local server URL updated to:", value)
     end
 })
 
@@ -583,6 +625,7 @@ Tabs.Settings:AddInput("WebhookInput", {
     Finished = false,
     Callback = function(value)
         getgenv().webhookURL = value
+        print("Webhook URL updated")
     end
 })
 
@@ -594,6 +637,7 @@ Tabs.Settings:AddInput("MilestoneInput", {
     Finished = false,
     Callback = function(value)
         getgenv().killMilestone = math.max(1, tonumber(value) or 100)
+        print("Kill milestone updated to:", getgenv().killMilestone)
     end
 })
 
@@ -625,6 +669,7 @@ Tabs.Settings:AddButton({
     Title = "Test Local Server",
     Description = "Test connection to local server",
     Callback = function()
+        print("Testing local server connection...")
         local testData = {
             type = "test",
             timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
@@ -677,6 +722,8 @@ Fluent:Notify({
     Content = "System loaded successfully",
     Duration = 3
 })
+
+print("Automation Hub GUI loaded")
 
 local MainConnection
 MainConnection = Services.RunService.Heartbeat:Connect(function()
@@ -744,4 +791,5 @@ pcall(function() setfpscap(60) end)
 State.CurrentFps = 60
 
 print("Automation Hub Loaded")
-print("Local Server URL:", getgenv().localServerURL or "Not set") -- FIXED: Added safe nil check
+print("Local Server URL:", getgenv().localServerURL or "Not set")
+print("Ready to use!")

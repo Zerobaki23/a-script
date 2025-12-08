@@ -1,7 +1,7 @@
 getgenv().mainaccount = getgenv().mainaccount or "YourMainUsername"
 getgenv().mainhelpers = getgenv().mainhelpers or {"alt1", "alt2"}
 getgenv().webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE"
-getgenv().localServerURL = "http://192.168.100.244:5000"
+getgenv().localServerURL = "http://192.168.100.244:5000/webhook"
 getgenv().checkInterval = 60
 getgenv().killMilestone = 100
 getgenv().lastKillCount = getgenv().lastKillCount or 0
@@ -694,7 +694,7 @@ Tabs.Teleport:AddButton({
 Tabs.Settings:AddInput("LocalServerInput", {
     Title = "Local Server URL",
     Default = getgenv().localServerURL,
-    Placeholder = "http://192.168.100.244:5000",
+    Placeholder = "http://192.168.100.244:5000/webhook",
     Numeric = false,
     Finished = false,
     Callback = function(value)

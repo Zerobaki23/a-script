@@ -102,7 +102,8 @@ local function getKills()
     return State.CachedKills
 end
 
-local Keys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four}
+-- MODIFIED: Added 'G' key to the sequence
+local Keys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.G}
 local KeyIndex = 1
 local function handleKeyPress()
     if not State.KeyPress or tick() - State.LastKeyPress < 0.2 then return end
@@ -112,7 +113,8 @@ local function handleKeyPress()
     Services.RunService.RenderStepped:Wait()
     Services.VirtualInputManager:SendKeyEvent(false, key, false, game)
     
-    KeyIndex = KeyIndex < 4 and KeyIndex + 1 or 1
+    -- MODIFIED: Changed to 5 keys instead of 4
+    KeyIndex = KeyIndex < 5 and KeyIndex + 1 or 1
     State.LastKeyPress = tick()
 end
 
@@ -319,6 +321,7 @@ local Tabs = {
 
 local Options = Fluent.Options
 
+-- MODIFIED: Updated description to include 'G' key
 Tabs.Automation:AddToggle("FarmingToggle", {
     Title = "Farming Mode",
     Description = "Enable farming overlay",
@@ -333,9 +336,10 @@ Tabs.Automation:AddToggle("FarmingToggle", {
     end
 })
 
+-- MODIFIED: Updated description to include 'G' key
 Tabs.Automation:AddToggle("KeyPressToggle", {
     Title = "Auto Key Press",
-    Description = "Press keys 1-4 automatically",
+    Description = "Press keys 1-4 and G automatically",
     Default = false,
     Callback = function(value)
         State.KeyPress = value

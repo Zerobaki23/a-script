@@ -152,6 +152,41 @@ local function getKills()
     return State.CachedKills
 end
 
+-- NEW: Function to get kills for a specific player
+local function getKillsForPlayer(playerName)
+    local targetPlayer = Services.Players:FindFirstChild(playerName)
+    if not targetPlayer then return 0 end
+    
+    local leaderstats = targetPlayer:FindFirstChild("leaderstats")
+    if not leaderstats then return 0 end
+    
+    local killStat = leaderstats:FindFirstChild("Kills") or 
+                     leaderstats:FindFirstChild("kills") or 
+                     leaderstats:FindFirstChild("KOs") or 
+                     leaderstats:FindFirstChild("Eliminations")
+    
+    if killStat then
+        return killStat.Value
+    end
+    
+    return 0
+end
+
+-- NEW: Function to get kills for all monitored accounts
+local function getAllAccountKills()
+    local accountKills = {}
+    
+    -- Get main account kills
+    accountKills[getgenv().mainaccount] = getKillsForPlayer(getgenv().mainaccount)
+    
+    -- Get helper account kills
+    for _, helper in ipairs(getgenv().mainhelpers) do
+        accountKills[helper] = getKillsForPlayer(helper)
+    end
+    
+    return accountKills
+end
+
 local Keys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.G}
 local KeyIndex = 1
 local function handleKeyPress()
@@ -223,7 +258,7 @@ local function sendToLocalServer(data)
     
     local success, result = pcall(function()
         local response = request({
-            Url = url,
+            Url = url .. "/webhook",  -- CHANGED: Added /webhook endpoint
             Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = Services.HttpService:JSONEncode(data)
@@ -253,7 +288,7 @@ local function sendKillUpdate()
     local killData = {
         type = "kill_update",
         timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
-        account = getgenv().mainaccount,
+        account = player.Name,  -- CHANGED: Use current player name
         kills = kills
     }
     
@@ -323,6 +358,9 @@ local function checkAccounts()
     
     State.LastAccountCheck = tick()
     
+    -- NEW: Get kills for all accounts
+    local accountKills = getAllAccountKills()
+    
     local serverInfo = "Server: " .. tostring(game.PlaceId)
     local statusText = string.format("**Account Status Report**\n\nMain Account: %s\nHelpers Online: %d/%d\n\n%s", 
         mainOnline and "✅ Online" or "❌ Offline", 
@@ -339,34 +377,45 @@ local function checkAccounts()
     local accountDetails = "\n\n**Monitored Accounts:**\n"
     for _, accountName in ipairs(allMonitoredAccounts) do
         local onlineStatus = playerCache[accountName:lower()] and "🟢 Online" or "🔴 Offline"
-        accountDetails = accountDetails .. string.format("- %s: %s\n", accountName, onlineStatus)
+        local kills = accountKills[accountName] or 0
+        accountDetails = accountDetails .. string.format("- %s: %s | Kills: %d\n", accountName, onlineStatus, kills)
     end
     
     statusText = statusText .. accountDetails
     
-    -- Send to local server first
+    -- Send to local server with ALL account kills
     local localServerData = {
         type = "account_status",
         timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
         placeId = tostring(game.PlaceId),
         mainAccount = {
             name = getgenv().mainaccount,
-            online = mainOnline
+            online = mainOnline,
+            kills = accountKills[getgenv().mainaccount] or 0  -- NEW: Add kills
         },
         helpers = {
             online = helpersOnline,
             total = totalHelpers,
             details = {}
         },
-        kills = getKills()  -- ADDED: Send kills with account status
+        accountKills = accountKills,  -- NEW: Add all account kills
+        totalKills = 0  -- NEW: Will calculate below
     }
     
+    -- Calculate total kills across all accounts
+    local totalKills = 0
     for _, accountName in ipairs(allMonitoredAccounts) do
+        local kills = accountKills[accountName] or 0
+        totalKills = totalKills + kills
+        
         table.insert(localServerData.helpers.details, {
             name = accountName,
-            online = playerCache[accountName:lower()] or false
+            online = playerCache[accountName:lower()] or false,
+            kills = kills  -- NEW: Add kills for each helper
         })
     end
+    
+    localServerData.totalKills = totalKills
     
     -- Get player names
     local playerNames = {}
@@ -377,6 +426,13 @@ local function checkAccounts()
     
     local localSuccess = sendToLocalServer(localServerData)
     
+    if localSuccess then
+        print(string.format("✓ Sent data: Total Kills: %d", totalKills))
+        for accountName, kills in pairs(accountKills) do
+            print(string.format("  - %s: %d kills", accountName, kills))
+        end
+    end
+    
     -- Then send to Discord webhook
     sendWebhook(
         "📊 Account Status",
@@ -385,8 +441,9 @@ local function checkAccounts()
         false
     )
     
+    -- Check milestones for main account
     if mainOnline and getgenv().killMilestone > 0 then
-        local kills = getKills()
+        local kills = accountKills[getgenv().mainaccount] or 0
         local lastKills = getgenv().lastKillCount or 0
         local currentMilestone = math.floor(kills / getgenv().killMilestone)
         local lastMilestone = math.floor(lastKills / getgenv().killMilestone)
@@ -566,13 +623,21 @@ Tabs.Monitor:AddButton({
         print("Manual check triggered")
         local success, result = pcall(function()
             local mainOnline, helpersOnline, totalHelpers = checkAccounts()
-            monitorStatus:SetDesc(string.format("Main: %s | Helpers: %d/%d",
-                mainOnline and "✅" or "❌", helpersOnline, totalHelpers))
+            
+            -- NEW: Show kill counts in status
+            local accountKills = getAllAccountKills()
+            local totalKills = 0
+            for _, kills in pairs(accountKills) do
+                totalKills = totalKills + kills
+            end
+            
+            monitorStatus:SetDesc(string.format("Main: %s | Helpers: %d/%d | Total Kills: %d",
+                mainOnline and "✅" or "❌", helpersOnline, totalHelpers, totalKills))
             
             if getgenv().localServerURL and getgenv().localServerURL ~= "" then
                 Fluent:Notify({
                     Title = "Data Sent",
-                    Content = "Account data sent to local server",
+                    Content = string.format("Account data sent\nTotal Kills: %d", totalKills),
                     Duration = 3
                 })
             end
@@ -701,7 +766,7 @@ Tabs.Settings:AddButton({
         
         local success, result = pcall(function()
             local response = request({
-                Url = getgenv().localServerURL,
+                Url = getgenv().localServerURL .. "/webhook",
                 Method = "POST",
                 Headers = {["Content-Type"] = "application/json"},
                 Body = Services.HttpService:JSONEncode(testData)
@@ -817,4 +882,4 @@ State.CurrentFps = 60
 print("Automation Hub Loaded")
 print("Local Server URL:", getgenv().localServerURL or "Not set")
 print("Ready to use!")
-print("Kills will be sent to local server every 5 seconds when farming")
+print("Kills will be tracked for all monitored accounts")

@@ -7,6 +7,10 @@ getgenv().killMilestone = 100
 getgenv().lastKillCount = getgenv().lastKillCount or 0
 getgenv().lastKillUpdate = getgenv().lastKillUpdate or 0
 
+-- Command system storage
+getgenv().CommandQueue = getgenv().CommandQueue or {}
+getgenv().CommandHistory = getgenv().CommandHistory or {}
+
 if not _G.InfiniteYieldLoaded then
     loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
     _G.InfiniteYieldLoaded = true
@@ -20,7 +24,8 @@ local Services = {
     UserInputService = game:GetService("UserInputService"),
     VirtualUser = game:GetService("VirtualUser"),
     StarterGui = game:GetService("StarterGui"),
-    CoreGui = game:GetService("CoreGui")
+    CoreGui = game:GetService("CoreGui"),
+    MessagingService = game:GetService("MessagingService")
 }
 
 local player = Services.Players.LocalPlayer
@@ -38,7 +43,8 @@ local State = {
     LastFpsCheck = 0,
     LastAccountCheck = 0,
     CachedKills = 0,
-    CurrentFps = 60
+    CurrentFps = 60,
+    LastCommandCheck = 0
 }
 
 print("Creating GUI...")
@@ -152,7 +158,6 @@ local function getKills()
     return State.CachedKills
 end
 
--- NEW: Function to get kills for a specific player
 local function getKillsForPlayer(playerName)
     local targetPlayer = Services.Players:FindFirstChild(playerName)
     if not targetPlayer then return 0 end
@@ -172,14 +177,11 @@ local function getKillsForPlayer(playerName)
     return 0
 end
 
--- NEW: Function to get kills for all monitored accounts
 local function getAllAccountKills()
     local accountKills = {}
     
-    -- Get main account kills
     accountKills[getgenv().mainaccount] = getKillsForPlayer(getgenv().mainaccount)
     
-    -- Get helper account kills
     for _, helper in ipairs(getgenv().mainhelpers) do
         accountKills[helper] = getKillsForPlayer(helper)
     end
@@ -258,7 +260,7 @@ local function sendToLocalServer(data)
     
     local success, result = pcall(function()
         local response = request({
-            Url = url .. "/webhook",  -- CHANGED: Added /webhook endpoint
+            Url = url,
             Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = Services.HttpService:JSONEncode(data)
@@ -276,7 +278,6 @@ local function sendToLocalServer(data)
     end
 end
 
--- NEW: Function to send kill updates to local server
 local function sendKillUpdate()
     local now = tick()
     if now - getgenv().lastKillUpdate < 5 then return end
@@ -288,7 +289,7 @@ local function sendKillUpdate()
     local killData = {
         type = "kill_update",
         timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
-        account = player.Name,  -- CHANGED: Use current player name
+        account = player.Name,
         kills = kills
     }
     
@@ -333,6 +334,123 @@ local function sendWebhook(title, description, color, ping)
     return success
 end
 
+-- ============================================================================
+-- COMMAND SYSTEM
+-- ============================================================================
+
+local function broadcastCommand(commandType, data, target)
+    target = target or "all"
+    
+    local command = {
+        id = Services.HttpService:GenerateGUID(false),
+        type = commandType,
+        data = data,
+        sender = player.Name,
+        target = target,
+        timestamp = tick()
+    }
+    
+    if not getgenv().CommandQueue then
+        getgenv().CommandQueue = {}
+    end
+    
+    table.insert(getgenv().CommandQueue, command)
+    
+    print(string.format("[COMMAND] Broadcasting: %s to %s", commandType, target))
+    
+    return true
+end
+
+local function checkForCommands()
+    if not getgenv().CommandQueue then
+        getgenv().CommandQueue = {}
+        return
+    end
+    
+    local isHelper = false
+    for _, helper in ipairs(getgenv().mainhelpers) do
+        if player.Name:lower() == helper:lower() then
+            isHelper = true
+            break
+        end
+    end
+    
+    if not isHelper then return end
+    
+    local now = tick()
+    local processedCommands = {}
+    
+    for i, command in ipairs(getgenv().CommandQueue) do
+        if command.sender ~= player.Name then
+            local shouldProcess = false
+            
+            if command.target == "all" then
+                shouldProcess = true
+            elseif command.target:lower() == player.Name:lower() then
+                shouldProcess = true
+            end
+            
+            if shouldProcess and (now - command.timestamp < 30) then
+                if command.type == "message" then
+                    print(string.format("[MESSAGE] From %s: %s", command.sender, command.data.message))
+                    
+                    pcall(function()
+                        Services.StarterGui:SetCore("SendNotification", {
+                            Title = "📢 " .. command.sender,
+                            Text = command.data.message,
+                            Duration = 8
+                        })
+                    end)
+                    
+                elseif command.type == "execute" then
+                    print(string.format("[EXECUTE] From %s: Running code...", command.sender))
+                    
+                    local success, result = pcall(function()
+                        loadstring(command.data.code)()
+                    end)
+                    
+                    if success then
+                        print("[EXECUTE] ✓ Code executed successfully")
+                        pcall(function()
+                            Services.StarterGui:SetCore("SendNotification", {
+                                Title = "⚡ Code Executed",
+                                Text = "From " .. command.sender,
+                                Duration = 3
+                            })
+                        end)
+                    else
+                        warn("[EXECUTE] ✗ Error:", result)
+                        pcall(function()
+                            Services.StarterGui:SetCore("SendNotification", {
+                                Title = "❌ Execution Error",
+                                Text = tostring(result):sub(1, 50),
+                                Duration = 5
+                            })
+                        end)
+                    end
+                end
+                
+                table.insert(processedCommands, i)
+            end
+        end
+    end
+    
+    for i = #processedCommands, 1, -1 do
+        table.remove(getgenv().CommandQueue, processedCommands[i])
+    end
+    
+    local expireTime = now - 60
+    for i = #getgenv().CommandQueue, 1, -1 do
+        if getgenv().CommandQueue[i].timestamp < expireTime then
+            table.remove(getgenv().CommandQueue, i)
+        end
+    end
+end
+
+-- ============================================================================
+-- ACCOUNT CHECKING
+-- ============================================================================
+
 local playerCache = {}
 local function updatePlayerCache()
     table.clear(playerCache)
@@ -358,7 +476,6 @@ local function checkAccounts()
     
     State.LastAccountCheck = tick()
     
-    -- NEW: Get kills for all accounts
     local accountKills = getAllAccountKills()
     
     local serverInfo = "Server: " .. tostring(game.PlaceId)
@@ -383,7 +500,6 @@ local function checkAccounts()
     
     statusText = statusText .. accountDetails
     
-    -- Send to local server with ALL account kills
     local localServerData = {
         type = "account_status",
         timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
@@ -391,18 +507,17 @@ local function checkAccounts()
         mainAccount = {
             name = getgenv().mainaccount,
             online = mainOnline,
-            kills = accountKills[getgenv().mainaccount] or 0  -- NEW: Add kills
+            kills = accountKills[getgenv().mainaccount] or 0
         },
         helpers = {
             online = helpersOnline,
             total = totalHelpers,
             details = {}
         },
-        accountKills = accountKills,  -- NEW: Add all account kills
-        totalKills = 0  -- NEW: Will calculate below
+        accountKills = accountKills,
+        totalKills = 0
     }
     
-    -- Calculate total kills across all accounts
     local totalKills = 0
     for _, accountName in ipairs(allMonitoredAccounts) do
         local kills = accountKills[accountName] or 0
@@ -411,13 +526,12 @@ local function checkAccounts()
         table.insert(localServerData.helpers.details, {
             name = accountName,
             online = playerCache[accountName:lower()] or false,
-            kills = kills  -- NEW: Add kills for each helper
+            kills = kills
         })
     end
     
     localServerData.totalKills = totalKills
     
-    -- Get player names
     local playerNames = {}
     for _, plr in ipairs(Services.Players:GetPlayers()) do
         table.insert(playerNames, plr.Name)
@@ -433,7 +547,6 @@ local function checkAccounts()
         end
     end
     
-    -- Then send to Discord webhook
     sendWebhook(
         "📊 Account Status",
         statusText,
@@ -441,7 +554,6 @@ local function checkAccounts()
         false
     )
     
-    -- Check milestones for main account
     if mainOnline and getgenv().killMilestone > 0 then
         local kills = accountKills[getgenv().mainaccount] or 0
         local lastKills = getgenv().lastKillCount or 0
@@ -449,7 +561,6 @@ local function checkAccounts()
         local lastMilestone = math.floor(lastKills / getgenv().killMilestone)
         
         if currentMilestone > lastMilestone and kills > 0 then
-            -- Send milestone to local server
             local milestoneData = {
                 type = "milestone",
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
@@ -624,7 +735,6 @@ Tabs.Monitor:AddButton({
         local success, result = pcall(function()
             local mainOnline, helpersOnline, totalHelpers = checkAccounts()
             
-            -- NEW: Show kill counts in status
             local accountKills = getAllAccountKills()
             local totalKills = 0
             for _, kills in pairs(accountKills) do
@@ -766,7 +876,7 @@ Tabs.Settings:AddButton({
         
         local success, result = pcall(function()
             local response = request({
-                Url = getgenv().localServerURL .. "/webhook",
+                Url = getgenv().localServerURL,
                 Method = "POST",
                 Headers = {["Content-Type"] = "application/json"},
                 Body = Services.HttpService:JSONEncode(testData)
@@ -791,6 +901,337 @@ Tabs.Settings:AddButton({
         end
     end
 })
+
+-- ============================================================================
+-- COMMAND CENTER TAB (Main Account Only)
+-- ============================================================================
+
+local isMainAccount = player.Name:lower() == getgenv().mainaccount:lower()
+
+if isMainAccount then
+    local CommandTab = Window:AddTab({ Title = "Command Center", Icon = "terminal" })
+    
+    local commandHistory = {}
+    local maxHistory = 50
+    
+    CommandTab:AddParagraph({
+        Title = "📢 Broadcast Message",
+        Content = "Send messages to all helper accounts"
+    })
+    
+    local messageInput = CommandTab:AddInput("MessageInput", {
+        Title = "Message",
+        Default = "",
+        Placeholder = "Enter message to broadcast...",
+        Numeric = false,
+        Finished = false
+    })
+    
+    CommandTab:AddButton({
+        Title = "Send Message",
+        Description = "Broadcast to all helpers",
+        Callback = function()
+            local message = Options.MessageInput.Value
+            if not message or message == "" then
+                Fluent:Notify({
+                    Title = "Error",
+                    Content = "Please enter a message",
+                    Duration = 3
+                })
+                return
+            end
+            
+            local success = broadcastCommand("message", {message = message}, "all")
+            
+            if success then
+                table.insert(commandHistory, 1, {
+                    time = os.date("%H:%M:%S"),
+                    type = "Message",
+                    content = message,
+                    status = "✅ Sent"
+                })
+                if #commandHistory > maxHistory then
+                    table.remove(commandHistory)
+                end
+                
+                Fluent:Notify({
+                    Title = "Message Sent",
+                    Content = "Broadcast to all helpers",
+                    Duration = 3
+                })
+                
+                Options.MessageInput:SetValue("")
+            else
+                Fluent:Notify({
+                    Title = "Error",
+                    Content = "Failed to send message",
+                    Duration = 3
+                })
+            end
+        end
+    })
+    
+    CommandTab:AddParagraph({
+        Title = "⚡ Execute Code",
+        Content = "Run Lua code on helper accounts"
+    })
+    
+    local codeInput = CommandTab:AddInput("CodeInput", {
+        Title = "Lua Code",
+        Default = "",
+        Placeholder = 'print("Hello from main!")',
+        Numeric = false,
+        Finished = false
+    })
+    
+    local targetDropdown = CommandTab:AddDropdown("TargetDropdown", {
+        Title = "Target Accounts",
+        Values = {"All Helpers"},
+        Multi = false,
+        Default = 1
+    })
+    
+    task.spawn(function()
+        task.wait(0.5)
+        local targets = {"All Helpers"}
+        for _, helper in ipairs(getgenv().mainhelpers) do
+            table.insert(targets, helper)
+        end
+        targetDropdown:SetValues(targets)
+    end)
+    
+    CommandTab:AddButton({
+        Title = "Execute Code",
+        Description = "Run code on selected accounts",
+        Callback = function()
+            local code = Options.CodeInput.Value
+            if not code or code == "" then
+                Fluent:Notify({
+                    Title = "Error",
+                    Content = "Please enter code to execute",
+                    Duration = 3
+                })
+                return
+            end
+            
+            local target = Options.TargetDropdown.Value == "All Helpers" and "all" or Options.TargetDropdown.Value
+            
+            local success = broadcastCommand("execute", {code = code}, target)
+            
+            if success then
+                table.insert(commandHistory, 1, {
+                    time = os.date("%H:%M:%S"),
+                    type = "Execute",
+                    content = code:sub(1, 50) .. (code:len() > 50 and "..." or ""),
+                    target = target,
+                    status = "✅ Sent"
+                })
+                if #commandHistory > maxHistory then
+                    table.remove(commandHistory)
+                end
+                
+                Fluent:Notify({
+                    Title = "Code Sent",
+                    Content = "Executing on: " .. (target == "all" and "All Helpers" or target),
+                    Duration = 3
+                })
+                
+                Options.CodeInput:SetValue("")
+            else
+                Fluent:Notify({
+                    Title = "Error",
+                    Content = "Failed to send code",
+                    Duration = 3
+                })
+            end
+        end
+    })
+    
+    CommandTab:AddParagraph({
+        Title = "🎮 Quick Actions",
+        Content = "Common commands for helpers"
+    })
+    
+    local quickActions = {
+        {
+            name = "Teleport All to Main",
+            code = function()
+                local mainPlayer = Services.Players:FindFirstChild(getgenv().mainaccount)
+                if mainPlayer and mainPlayer.Character and mainPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local pos = mainPlayer.Character.HumanoidRootPart.Position
+                    return string.format([[
+local char = game.Players.LocalPlayer.Character
+if char and char:FindFirstChild("HumanoidRootPart") then
+    char.HumanoidRootPart.CFrame = CFrame.new(%f, %f, %f)
+end]], pos.X, pos.Y, pos.Z)
+                end
+                return nil
+            end
+        },
+        {
+            name = "Teleport All to Coords",
+            code = string.format([[
+local char = game.Players.LocalPlayer.Character
+if char and char:FindFirstChild("HumanoidRootPart") then
+    char.HumanoidRootPart.CFrame = CFrame.new(%f, %f, %f)
+end]], coords.x, coords.y, coords.z)
+        },
+        {
+            name = "Reset All Characters",
+            code = 'game.Players.LocalPlayer.Character:FindFirstChild("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)'
+        },
+        {
+            name = "Show Helper Positions",
+            code = [[
+local hrp = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if hrp then
+    local pos = hrp.Position
+    print(string.format("%s Position: %.1f, %.1f, %.1f", game.Players.LocalPlayer.Name, pos.X, pos.Y, pos.Z))
+end]]
+        },
+        {
+            name = "Toggle Farming (All)",
+            code = [[
+State.Farming = not State.Farming
+overlay.Visible = State.Farming
+if State.Farming then 
+    State.StartTime = tick() 
+end]]
+        },
+        {
+            name = "Start Farming (All)",
+            code = [[
+State.Farming = true
+overlay.Visible = true
+State.StartTime = tick()]]
+        },
+        {
+            name = "Stop Farming (All)",
+            code = [[
+State.Farming = false
+overlay.Visible = false]]
+        }
+    }
+    
+    for _, action in ipairs(quickActions) do
+        CommandTab:AddButton({
+            Title = action.name,
+            Description = "Execute: " .. action.name,
+            Callback = function()
+                local code = action.code
+                
+                if type(code) == "function" then
+                    code = code()
+                    if not code then
+                        Fluent:Notify({
+                            Title = "Error",
+                            Content = "Cannot execute - main account not found",
+                            Duration = 3
+                        })
+                        return
+                    end
+                end
+                
+                local success = broadcastCommand("execute", {code = code}, "all")
+                
+                if success then
+                    table.insert(commandHistory, 1, {
+                        time = os.date("%H:%M:%S"),
+                        type = "Quick Action",
+                        content = action.name,
+                        status = "✅ Sent"
+                    })
+                    if #commandHistory > maxHistory then
+                        table.remove(commandHistory)
+                    end
+                    
+                    Fluent:Notify({
+                        Title = "Action Sent",
+                        Content = action.name .. " → All Helpers",
+                        Duration = 3
+                    })
+                end
+            end
+        })
+    end
+    
+    local historyText = CommandTab:AddParagraph({
+        Title = "📋 Command History",
+        Content = "No commands sent yet"
+    })
+    
+    CommandTab:AddButton({
+        Title = "Refresh History",
+        Description = "Update command history display",
+        Callback = function()
+            if #commandHistory == 0 then
+                historyText:SetDesc("No commands sent yet")
+            else
+                local historyStr = ""
+                for i = 1, math.min(5, #commandHistory) do
+                    local cmd = commandHistory[i]
+                    historyStr = historyStr .. string.format("[%s] %s: %s %s\n", 
+                        cmd.time, cmd.type, cmd.content, cmd.status)
+                end
+                historyText:SetDesc(historyStr)
+            end
+        end
+    })
+    
+    CommandTab:AddButton({
+        Title = "Clear History",
+        Description = "Clear command history",
+        Callback = function()
+            table.clear(commandHistory)
+            historyText:SetDesc("History cleared")
+            Fluent:Notify({
+                Title = "Cleared",
+                Content = "Command history cleared",
+                Duration = 2
+            })
+        end
+    })
+    
+    local commandStatus = CommandTab:AddParagraph({
+        Title = "📡 Command System",
+        Content = "Status: Active | Queue: 0"
+    })
+    
+    CommandTab:AddButton({
+        Title = "Check Queue Status",
+        Description = "View command queue",
+        Callback = function()
+            local queueSize = getgenv().CommandQueue and #getgenv().CommandQueue or 0
+            commandStatus:SetDesc(string.format("Status: Active | Queue: %d commands", queueSize))
+            
+            Fluent:Notify({
+                Title = "Queue Status",
+                Content = string.format("%d commands in queue", queueSize),
+                Duration = 3
+            })
+        end
+    })
+    
+    CommandTab:AddButton({
+        Title = "Clear Command Queue",
+        Description = "Remove all pending commands",
+        Callback = function()
+            if getgenv().CommandQueue then
+                local oldSize = #getgenv().CommandQueue
+                table.clear(getgenv().CommandQueue)
+                commandStatus:SetDesc("Status: Active | Queue: 0 commands")
+                
+                Fluent:Notify({
+                    Title = "Queue Cleared",
+                    Content = string.format("Removed %d commands", oldSize),
+                    Duration = 3
+                })
+            end
+        end
+    })
+    
+    print("✓ Command Center loaded for main account")
+end
 
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
@@ -821,7 +1262,6 @@ MainConnection = Services.RunService.Heartbeat:Connect(function()
         statusLabel.Text = string.format("Status: Farming\nKills: %d\nTime: %s", 
             kills, formatTime(elapsed))
         
-        -- Send kill update to local server every 5 seconds when farming
         sendKillUpdate()
     end
     
@@ -835,6 +1275,11 @@ MainConnection = Services.RunService.Heartbeat:Connect(function()
     
     if State.AccountChecker and now - State.LastAccountCheck >= getgenv().checkInterval then
         pcall(checkAccounts)
+    end
+    
+    if now - State.LastCommandCheck >= 2 then
+        State.LastCommandCheck = now
+        pcall(checkForCommands)
     end
 end)
 
@@ -879,7 +1324,29 @@ updatePlayerCache()
 pcall(function() setfpscap(60) end)
 State.CurrentFps = 60
 
-print("Automation Hub Loaded")
+print("========================================")
+print("Automation Hub Loaded Successfully")
+print("========================================")
+print("Account Type:", accountType)
 print("Local Server URL:", getgenv().localServerURL or "Not set")
+if isMainAccount then
+    print("✓ Command Center: ENABLED (Main Account)")
+    print("  - Send messages to helpers")
+    print("  - Execute code on helpers")
+    print("  - Quick action buttons")
+else
+    local isHelper = false
+    for _, helper in ipairs(getgenv().mainhelpers) do
+        if player.Name:lower() == helper:lower() then
+            isHelper = true
+            break
+        end
+    end
+    if isHelper then
+        print("✓ Command Receiver: ENABLED (Helper Account)")
+        print("  - Listening for commands from main")
+        print("  - Auto-executing received code")
+    end
+end
+print("========================================")
 print("Ready to use!")
-print("Kills will be tracked for all monitored accounts")
